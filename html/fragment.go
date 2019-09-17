@@ -5,8 +5,8 @@ import "C"
 import (
 	"bytes"
 	"errors"
-	. "github.com/jbowtie/gokogiri/util"
-	"github.com/jbowtie/gokogiri/xml"
+	. "github.com/freemed/gokogiri/util"
+	"github.com/freemed/gokogiri/xml"
 	"unsafe"
 )
 

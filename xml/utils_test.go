@@ -3,8 +3,8 @@ package xml
 import (
 	"errors"
 	"fmt"
-	"github.com/jbowtie/gokogiri/help"
-	"github.com/jbowtie/gokogiri/xpath"
+	"github.com/freemed/gokogiri/help"
+	"github.com/freemed/gokogiri/xpath"
 	"io/ioutil"
 	"path/filepath"
 	"strings"

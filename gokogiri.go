@@ -8,8 +8,8 @@ and a simple DOM-like inteface allows for building up documents from scratch.
 package gokogiri
 
 import (
-	"github.com/jbowtie/gokogiri/html"
-	"github.com/jbowtie/gokogiri/xml"
+	"github.com/freemed/gokogiri/html"
+	"github.com/freemed/gokogiri/xml"
 )
 
 /*
@@ -27,7 +27,7 @@ ParseXml parses an UTF-8 encoded byte array and returns an xml.XmlDocument. By d
 and suppress errors and warnings. This allows one to be liberal in accepting badly-formed documents, but is not standards-compliant.
 
 If the content is not UTF-8 encoded or you want to customize the parsing options, you should call the Parse or ReadFile functions
-found in the github.com/jbowtie/gokogiri/xml package. The xml.StrictParsingOption is conveniently provided for standards-compliant
+found in the github.com/freemed/gokogiri/xml package. The xml.StrictParsingOption is conveniently provided for standards-compliant
 behaviour.
 */
 func ParseXml(content []byte) (doc *xml.XmlDocument, err error) {

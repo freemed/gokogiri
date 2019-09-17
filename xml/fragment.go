@@ -4,7 +4,7 @@ package xml
 import "C"
 import (
 	"errors"
-	. "github.com/jbowtie/gokogiri/util"
+	. "github.com/freemed/gokogiri/util"
 	"unsafe"
 )
 

@@ -32,7 +32,7 @@ char *check_xpath_syntax(const char *xpath) {
 */
 import "C"
 import "unsafe"
-import . "github.com/jbowtie/gokogiri/util"
+import . "github.com/freemed/gokogiri/util"
 
 //import "runtime"
 import "errors"
