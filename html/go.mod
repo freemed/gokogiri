@@ -8,6 +8,6 @@ replace (
 )
 
 require (
-	github.com/freemed/gokogiri v0.0.0-2019091701
-	github.com/freemed/gokogiri/xml v0.0.0-2019091701
+	github.com/freemed/gokogiri v0.0.2
+	github.com/freemed/gokogiri/xml v0.0.2
 )
