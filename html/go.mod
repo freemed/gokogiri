@@ -4,6 +4,7 @@ go 1.15
 
 replace (
 	github.com/freemed/gokogiri => ../
+	github.com/freemed/gokogiri/html => ./
 	github.com/freemed/gokogiri/xml => ../xml
 )
 
