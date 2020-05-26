@@ -8,7 +8,7 @@ go 1.15
 //	github.com/freemed/gokogiri/xml => ../xml
 //)
 
-require (
-	github.com/freemed/gokogiri v0.0.2
-	github.com/freemed/gokogiri/xml v0.0.2
-)
+//require (
+//	github.com/freemed/gokogiri v0.0.2
+//	github.com/freemed/gokogiri/xml v0.0.2
+//)

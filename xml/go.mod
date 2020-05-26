@@ -6,6 +6,6 @@ go 1.15
 //	github.com/freemed/gokogiri => ../
 //)
 
-require (
-	github.com/freemed/gokogiri v0.0.2
-)
+//require (
+//	github.com/freemed/gokogiri v0.0.2
+//)
