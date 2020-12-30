@@ -8,3 +8,4 @@ libxml/test/ctest/test
 test_output.txt
 .jank
 jank.yml
+go.sum
