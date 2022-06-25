@@ -1,6 +1,6 @@
 module github.com/freemed/gokogiri/xml
 
-go 1.15
+go 1.18
 
 //replace (
 //	github.com/freemed/gokogiri => ../

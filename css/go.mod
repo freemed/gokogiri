@@ -1,10 +1,7 @@
 module github.com/freemed/gokogiri/css
 
-go 1.15
+go 1.18
 
-//replace (
-//	github.com/freemed/gokogiri => ../
-//	github.com/freemed/rubex => ../../rubex
-//)
+replace github.com/freemed/rubex => ../../rubex
 
-require github.com/freemed/rubex v0.0.0-00010101000000-000000000000
+require github.com/freemed/rubex v0.0.1
