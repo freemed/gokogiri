@@ -15,36 +15,45 @@ It uses parsing default options that ignore errors or warnings, making it suitab
 
 This fork incorporates changes required to compile on Go 1.4 and above.
 
-To install:
+## Installation
 
-- sudo apt-get install libxml2-dev libonig-dev
-- go get github.com/freemed/gokogiri
+```bash
+# Linux
+sudo apt-get install libxml2-dev
+# Mac
+brew install libxml2
 
-To run test:
+go get github.com/freemed/gokogiri
+```
 
-- go test github.com/freemed/gokogiri/html
-- go test github.com/freemed/gokogiri/xml
+## Running tests
 
-Basic example:
+```bash
+go test github.com/freemed/gokogiri/...
+```
 
-    package main
+## Basic example
 
-    import (
-      "net/http"
-      "io/ioutil"
-      "github.com/freemed/gokogiri"
-    )
+```go
+package main
 
-    func main() {
-      // fetch and read a web page
-      resp, _ := http.Get("http://www.google.com")
-      page, _ := ioutil.ReadAll(resp.Body)
+import (
+  "net/http"
+  "io/ioutil"
+  "github.com/freemed/gokogiri"
+)
 
-      // parse the web page
-      doc, _ := gokogiri.ParseHtml(page)
-      defer doc.Free()
+func main() {
+  // fetch and read a web page
+  resp, _ := http.Get("http://www.google.com")
+  page, _ := ioutil.ReadAll(resp.Body)
 
-      // perform operations on the parsed page -- consult the tests for examples
-    }
+  // parse the web page
+  doc, _ := gokogiri.ParseHtml(page)
 
-Original upstream version by Zhigang Chen and Hampton Catlin.
+  // perform operations on the parsed page -- consult the tests for examples
+
+  // important -- don't forget to free the resources when you're done!
+  doc.Free()
+}
+```
