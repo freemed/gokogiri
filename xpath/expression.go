@@ -11,10 +11,11 @@ void check_xpath_syntax_noop(void *ctx, const char *fmt, ...) {
 
 char *check_xpath_syntax(const char *xpath) {
 	xmlGenericErrorFunc err_func = check_xpath_syntax_noop;
-	initGenericErrorDefaultFunc(&err_func);
+	xmlParserCtxtPtr ctx = NULL;
+	xmlSetGenericErrorFunc(ctx, err_func);
 	xmlResetLastError();
 	xmlXPathCompile((const xmlChar *)xpath);
-	xmlErrorPtr err = xmlGetLastError();
+	xmlErrorPtr err = (xmlErrorPtr) xmlGetLastError();
 	if (err != NULL) {
 		if (err->code == XML_XPATH_EXPR_ERROR) {
 			// TODO: Not the cleanest but should scale well
@@ -32,11 +33,14 @@ char *check_xpath_syntax(const char *xpath) {
 }
 */
 import "C"
-import "unsafe"
-import . "github.com/freemed/gokogiri/util"
+import (
+	"errors"
+	"unsafe"
+
+	. "github.com/freemed/gokogiri/util"
+)
 
 //import "runtime"
-import "errors"
 
 type Expression struct {
 	Ptr   *C.xmlXPathCompExpr

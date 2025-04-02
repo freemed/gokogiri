@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <libxml/parser.h>
 #include <libxml/xmlmemory.h>
 
 //#define TRACE_MEM
@@ -10,6 +11,7 @@
 
 unsigned long alloc_count = 0;
 
+/*
 #ifndef strdup
 char *strdup (const char *str) {
 	char *new = malloc(strlen(str));
@@ -17,6 +19,7 @@ char *strdup (const char *str) {
 	return new;
 }
 #endif
+*/
 
 #ifdef CUSTOM_GC
 #pragma pack(push)

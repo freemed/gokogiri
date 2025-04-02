@@ -1,5 +1,5 @@
 module github.com/freemed/gokogiri/help
 
-go 1.22
+go 1.24
 
-toolchain go1.23.2
+toolchain go1.24.0

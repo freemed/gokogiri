@@ -17,7 +17,7 @@ func TestDocuments(t *testing.T) {
 	tests, err := collectTests("document")
 
 	if len(err) > 0 {
-		t.Errorf(err)
+		t.Error(err)
 	}
 
 	errors := make([]string, 0)
@@ -52,7 +52,7 @@ func TestBufferedDocuments(t *testing.T) {
 	tests, err := collectTests("document")
 
 	if len(err) > 0 {
-		t.Errorf(err)
+		t.Error(err)
 	}
 
 	errors := make([]string, 0)
@@ -156,7 +156,7 @@ func BenchmarkDocOutput(b *testing.B) {
 	tests, err := collectTests("document")
 
 	if len(err) > 0 {
-		fmt.Printf(err)
+		fmt.Print(err)
 		return
 	}
 
@@ -167,7 +167,7 @@ func BenchmarkDocOutput(b *testing.B) {
 		input, _, dataError := getTestData(testName)
 
 		if len(dataError) > 0 {
-			fmt.Printf(dataError)
+			fmt.Print(dataError)
 			return
 		}
 		doc, err := Parse(input, DefaultEncodingBytes, nil, DefaultParseOption, DefaultEncodingBytes)
@@ -206,7 +206,7 @@ func BenchmarkDocOutputToBuffer(b *testing.B) {
 		input, _, dataError := getTestData(testName)
 
 		if len(dataError) > 0 {
-			fmt.Printf(dataError)
+			fmt.Print(dataError)
 			return
 		}
 		doc, err := Parse(input, DefaultEncodingBytes, nil, DefaultParseOption, DefaultEncodingBytes)
