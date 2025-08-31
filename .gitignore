@@ -9,3 +9,4 @@ test_output.txt
 .jank
 jank.yml
 go.sum
+go.work.sum
