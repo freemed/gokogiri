@@ -1,8 +1,6 @@
 module github.com/freemed/gokogiri
 
-go 1.22
-
-toolchain go1.23.2
+go 1.24
 
 replace (
 	github.com/freemed/gokogiri/help => ./help
@@ -14,12 +12,12 @@ replace (
 )
 
 require (
-	github.com/freemed/gokogiri/help v0.0.0-20250402180648-1e651eb8ffcd
-	github.com/freemed/gokogiri/html v0.0.0-20250402180648-1e651eb8ffcd
-	github.com/freemed/gokogiri/xml v0.0.0-20250402180648-1e651eb8ffcd
+	github.com/freemed/gokogiri/help v0.0.0-20250831182455-de8ad4878374
+	github.com/freemed/gokogiri/html v0.0.0-20250831182455-de8ad4878374
+	github.com/freemed/gokogiri/xml v0.0.0-20250831182455-de8ad4878374
 )
 
 require (
-	github.com/freemed/gokogiri/util v0.0.0-20250402180648-1e651eb8ffcd // indirect
-	github.com/freemed/gokogiri/xpath v0.0.0-20250402180648-1e651eb8ffcd // indirect
+	github.com/freemed/gokogiri/util v0.0.0-20250831182455-de8ad4878374 // indirect
+	github.com/freemed/gokogiri/xpath v0.0.0-20250831182455-de8ad4878374 // indirect
 )
