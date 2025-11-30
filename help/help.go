@@ -9,7 +9,7 @@ package help
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlsave.h>
 
-void printMemoryLeak() { xmlMemDisplay(stdout); }
+//void printMemoryLeak() { xmlMemDisplay(stdout); }
 */
 import "C"
 
@@ -70,5 +70,5 @@ func LibxmlCheckMemoryLeak() bool {
 }
 
 func LibxmlReportMemoryLeak() {
-	C.printMemoryLeak()
+	//C.printMemoryLeak()
 }

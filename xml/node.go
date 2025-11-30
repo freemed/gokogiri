@@ -147,10 +147,10 @@ type Node interface {
 	DeclaredNamespaces() []NamespaceDeclaration
 }
 
-//run out of memory
+// run out of memory
 var ErrTooLarge = errors.New("Output buffer too large")
 
-//pre-allocate a buffer for serializing the document
+// pre-allocate a buffer for serializing the document
 const initialOutputBufferSize = 10 //100K
 
 /*
@@ -363,7 +363,7 @@ func (xmlNode *XmlNode) PreviousSibling() Node {
 
 // CountChildren returns the number of child nodes.
 func (xmlNode *XmlNode) CountChildren() int {
-	return int(C.xmlLsCountNode(xmlNode.Ptr))
+	return int(C.xmlChildElementCount(xmlNode.Ptr))
 }
 
 func (xmlNode *XmlNode) FirstChild() Node {
@@ -997,8 +997,9 @@ var (
 	wbufferMutex sync.Mutex
 )
 
-//export xmlNodeWriteCallback
 // NOTE: wbufferMutex is locked
+//
+//export xmlNodeWriteCallback
 func xmlNodeWriteCallback(data unsafe.Pointer, data_len C.int) {
 	offset := wbuffer.Offset
 
@@ -1020,8 +1021,9 @@ func xmlNodeWriteCallback(data unsafe.Pointer, data_len C.int) {
 	}
 }
 
-//export xmlUnlinkNodeCallback
 // NOTE: contentMutex is locked
+//
+//export xmlUnlinkNodeCallback
 func xmlUnlinkNodeCallback(nodePtr unsafe.Pointer) {
 	contentNode.Document.AddUnlinkedNode(nodePtr)
 }
