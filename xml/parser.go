@@ -353,13 +353,10 @@ func buildTreeFromDecoder(decoder *xml.Decoder, lr *lineTrackingReader) (root *I
 			break
 		}
 		if tokErr != nil {
-			if current != nil {
-				// Record error but keep what we have
-			}
 			if err == nil {
 				err = tokErr
 			}
-			continue
+			break
 		}
 
 		switch t := tok.(type) {
@@ -432,9 +429,8 @@ func buildTreeFromDecoder(decoder *xml.Decoder, lr *lineTrackingReader) (root *I
 			}
 			if current != nil {
 				current.AppendChild(commentNode)
-			} else if root == nil {
-				root = commentNode
 			}
+			// Comment before root element: skip (not part of DOM tree)
 
 		case xml.ProcInst:
 			piNode := &InternalNode{
@@ -446,9 +442,8 @@ func buildTreeFromDecoder(decoder *xml.Decoder, lr *lineTrackingReader) (root *I
 			}
 			if current != nil {
 				current.AppendChild(piNode)
-			} else if root == nil {
-				root = piNode
 			}
+			// XML declaration before root element: skip (not part of DOM tree)
 
 		case xml.Directive:
 			// <!DOCTYPE ...> — stored as directive, not in tree

@@ -10,8 +10,7 @@ func TestAddChild(t *testing.T) {
 			`<?xml version="1.0" encoding="utf-8"?>
 <foo>
   <bar/>
-</foo>
-`
+</foo>`
 		doc.Root().AddChild("<bar></bar>")
 
 		return doc.String(), expectedDocAfterAdd, "output of the xml doc after AddChild does not match"
@@ -34,8 +33,7 @@ func TestAddAncestorAsChild(t *testing.T) {
 	docAssertion := func(doc *XmlDocument) (string, string, string) {
 		expectedDocAfterAdd :=
 			`<?xml version="1.0" encoding="utf-8"?>
-<foo/>
-`
+<foo/>`
 
 		foo := doc.Root()
 		bar := foo.FirstChild()

@@ -12,7 +12,11 @@ func TestInnerScript(t *testing.T) {
 		return
 	}
 
-	h1 := doc.Root().FirstChild().FirstChild().FirstChild()
+	h1 := doc.Root().FirstChild().NextSibling().FirstChild().FirstChild()
+	if h1 == nil {
+		t.Error("could not find h1 element")
+		return
+	}
 	h1.SetInnerHtml("<script>if (suppressReviews !== 'true' && app == 'PRR') { ok = true; }</script>")
 	if h1.String() != "<h1><script>if (suppressReviews !== 'true' && app == 'PRR') { ok = true; }</script></h1>" {
 		t.Error("script does not match")
@@ -61,7 +65,11 @@ subjectType: 'product'
 		return
 	}
 
-	h1 := doc.Root().FirstChild().FirstChild().FirstChild()
+	h1 := doc.Root().FirstChild().NextSibling().FirstChild().FirstChild()
+	if h1 == nil {
+		t.Error("could not find h1 element")
+		return
+	}
 	h1.SetInnerHtml(script)
 	if h1.String() != "<h1>"+script+"</h1>" {
 		t.Error("script does not match")
@@ -237,6 +245,7 @@ func TestRemoveMeRemoveParent(t *testing.T) {
 	nodes, _ = h1.Search("..")
 	if len(nodes) != 1 {
 		t.Error("removed node should have a parent , i.e. its document")
+		return
 	}
 	nodes[0].Remove()
 	doc.Free()

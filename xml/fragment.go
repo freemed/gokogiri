@@ -42,7 +42,8 @@ func parsefragment(document Document, node *XmlNode, content, url []byte, option
 
 	// Extract children of <root> — they are the fragment nodes
 	var fragChildren []Node
-	for child := root.FirstChild(); child != nil; child = child.NextSibling() {
+	for child := root.FirstChild(); child != nil; {
+		next := child.NextSibling() // save before detach clears Next
 		// Detach from the parse document and re-parent to the target document
 		childInner := getInternalNode(child)
 		if childInner != nil {
@@ -50,6 +51,17 @@ func parsefragment(document Document, node *XmlNode, content, url []byte, option
 			childInner.Doc = document.doc()
 		}
 		fragChildren = append(fragChildren, child)
+		child = next
+	}
+
+	// Re-link siblings since Detach() broke the chain for detached nodes
+	for i := 0; i < len(fragChildren)-1; i++ {
+		inner := getInternalNode(fragChildren[i])
+		nextInner := getInternalNode(fragChildren[i+1])
+		if inner != nil && nextInner != nil {
+			inner.Next = nextInner
+			nextInner.Prev = inner
+		}
 	}
 
 	// Create fragment with first child as root node

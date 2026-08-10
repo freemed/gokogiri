@@ -1,28 +1,37 @@
 package xpath
 
-import "errors"
+import (
+	antchfx "github.com/antchfx/xpath"
+)
 
 // Expression is a compiled XPath expression.
 type Expression struct {
-	xpath string
+	expr   *antchfx.Expr
+	xpath  string
 }
 
 // Check validates an XPath expression syntax.
 func Check(path string) (err error) {
-	if len(path) == 0 {
-		return errors.New("empty xpath expression")
-	}
-	// Phase 4: use antchfx/xpath for validation
-	return nil
+	_, err = antchfx.Compile(path)
+	return
 }
 
 // Compile compiles an XPath expression string.
 func Compile(path string) (expr *Expression) {
-	if len(path) == 0 {
-		return
+	e, err := antchfx.Compile(path)
+	if err != nil {
+		return nil
 	}
-	// Phase 4: use antchfx/xpath for compilation
-	return &Expression{xpath: path}
+	return &Expression{expr: e, xpath: path}
+}
+
+// CompileWithNS compiles with namespace bindings.
+func CompileWithNS(path string, namespaces map[string]string) (expr *Expression) {
+	e, err := antchfx.CompileWithNS(path, namespaces)
+	if err != nil {
+		return nil
+	}
+	return &Expression{expr: e, xpath: path}
 }
 
 // String returns the original XPath string.
@@ -35,5 +44,5 @@ func (exp *Expression) String() string {
 
 // Free releases compilation resources.
 func (exp *Expression) Free() {
-	// Phase 4
+	exp.expr = nil
 }

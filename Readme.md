@@ -5,24 +5,20 @@ Gokogiri
 [![Go Report Card](https://goreportcard.com/badge/github.com/freemed/gokogiri)](https://goreportcard.com/report/github.com/freemed/gokogiri)
 [![GoDoc](https://godoc.org/github.com/freemed/gokogiri?status.svg)](https://godoc.org/github.com/freemed/gokogiri)
 
-LibXML bindings for the Go programming language.
-------------------------------------------------
-The gokogiri package provides a Go interface to the libxml2 library.
+Pure-Go XML/HTML DOM and XPath library
+---------------------------------------
 
-It is inspired by the ruby-based Nokogiri API, and allows one to parse, manipulate, and create HTML and XML documents. Nodes can be selected using either CSS selectors (in much the same fashion as jQuery) or XPath 1.0 expressions, and a simple DOM-like interface allows for building up documents from scratch.
+Gokogiri is a pure-Go library providing a DOM-like interface for XML and HTML
+documents, inspired by the Ruby Nokogiri API. It allows you to parse, manipulate,
+and create HTML and XML documents. Nodes can be selected using CSS selectors
+(in much the same fashion as jQuery) or XPath 1.0 expressions.
 
-It uses parsing default options that ignore errors or warnings, making it suitable for the poorly-formed 'tag soup' often found on the web. The xml.StrictParsingOption is conveniently provided for standards-compliant behaviour.
-
-This fork incorporates changes required to compile on Go 1.4 and above.
+Version 5.1+ is a pure-Go implementation with zero C dependencies. Earlier
+versions required libxml2/libxslt C libraries.
 
 ## Installation
 
 ```bash
-# Linux
-sudo apt-get install libxml2-dev
-# Mac
-brew install libxml2
-
 go get github.com/freemed/gokogiri
 ```
 
@@ -39,14 +35,14 @@ package main
 
 import (
   "net/http"
-  "io/ioutil"
+  "io"
   "github.com/freemed/gokogiri"
 )
 
 func main() {
   // fetch and read a web page
   resp, _ := http.Get("http://www.google.com")
-  page, _ := ioutil.ReadAll(resp.Body)
+  page, _ := io.ReadAll(resp.Body)
 
   // parse the web page
   doc, _ := gokogiri.ParseHtml(page)

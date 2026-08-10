@@ -637,6 +637,9 @@ func (xmlNode *XmlNode) Search(data interface{}) (result []Node, err error) {
 		result, err = xmlNode.Search(string(data))
 	case *xpath.Expression:
 		xpathCtx := xmlNode.Document.DocXPathCtx()
+		if xpathCtx == nil {
+			xpathCtx = xpath.NewXPath(xmlNode.Document)
+		}
 		nodePtrs, xerr := xpathCtx.EvaluateAsNodeset(xmlNode.inner, data)
 		if nodePtrs == nil || xerr != nil {
 			return nil, xerr
@@ -666,6 +669,9 @@ func (xmlNode *XmlNode) SearchWithVariables(data interface{}, v xpath.VariableSc
 		result, err = xmlNode.SearchWithVariables(string(data), v)
 	case *xpath.Expression:
 		xpathCtx := xmlNode.Document.DocXPathCtx()
+		if xpathCtx == nil {
+			xpathCtx = xpath.NewXPath(xmlNode.Document)
+		}
 		xpathCtx.SetResolver(v)
 		nodePtrs, xerr := xpathCtx.EvaluateAsNodeset(xmlNode.inner, data)
 		if nodePtrs == nil || xerr != nil {
@@ -694,6 +700,9 @@ func (xmlNode *XmlNode) EvalXPath(data interface{}, v xpath.VariableScope) (resu
 		result, err = xmlNode.EvalXPath(string(data), v)
 	case *xpath.Expression:
 		xpathCtx := xmlNode.Document.DocXPathCtx()
+		if xpathCtx == nil {
+			xpathCtx = xpath.NewXPath(xmlNode.Document)
+		}
 		xpathCtx.SetResolver(v)
 		xerr := xpathCtx.Evaluate(xmlNode.inner, data)
 		if xerr != nil {
@@ -738,6 +747,9 @@ func (xmlNode *XmlNode) EvalXPathAsBoolean(data interface{}, v xpath.VariableSco
 		result = xmlNode.EvalXPathAsBoolean(string(data), v)
 	case *xpath.Expression:
 		xpathCtx := xmlNode.Document.DocXPathCtx()
+		if xpathCtx == nil {
+			xpathCtx = xpath.NewXPath(xmlNode.Document)
+		}
 		xpathCtx.SetResolver(v)
 		err := xpathCtx.Evaluate(xmlNode.inner, data)
 		if err != nil {
@@ -823,7 +835,9 @@ func (xmlNode *XmlNode) SerializeWithFormat(format SerializationOption, encoding
 }
 
 func (xmlNode *XmlNode) ToXml(encoding, outputBuffer []byte) ([]byte, int) {
-	return xmlNode.serialize(XML_SAVE_AS_XML|XML_SAVE_FORMAT, encoding, outputBuffer)
+	// Don't include XML declaration when serializing individual nodes.
+	// The declaration is added at the document level by XmlDocument.String().
+	return xmlNode.serialize(XML_SAVE_AS_XML|XML_SAVE_FORMAT|XML_SAVE_NO_DECL, encoding, outputBuffer)
 }
 
 func (xmlNode *XmlNode) ToUnformattedXml() string {
@@ -861,7 +875,27 @@ func (xmlNode *XmlNode) Content() string {
 	if xmlNode.inner == nil {
 		return ""
 	}
+	// For element nodes, collect text from all descendant text nodes
+	if xmlNode.inner.Typ == XML_ELEMENT_NODE || xmlNode.inner.Typ == XML_DOCUMENT_NODE {
+		return collectTextContent(xmlNode.inner)
+	}
 	return xmlNode.inner.Content
+}
+
+// collectTextContent recursively collects all text from descendant text/cdata nodes.
+func collectTextContent(n *InternalNode) string {
+	if n == nil {
+		return ""
+	}
+	var buf string
+	for c := n.Children; c != nil; c = c.Next {
+		if c.Typ == XML_TEXT_NODE || c.Typ == XML_CDATA_SECTION_NODE {
+			buf += c.Content
+		} else if c.Typ == XML_ELEMENT_NODE {
+			buf += collectTextContent(c)
+		}
+	}
+	return buf
 }
 
 func (xmlNode *XmlNode) InnerHtml() string {

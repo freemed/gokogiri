@@ -7,6 +7,7 @@ import (
 
 	"github.com/freemed/gokogiri/xml"
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 var fragmentWrapperStart = []byte("<div>")
@@ -23,12 +24,11 @@ func parsefragment(document xml.Document, node *xml.XmlNode, content, url []byte
 	var root xml.Node
 
 	if node == nil {
-		containBody := bytes.Index(content, bodySigBytes) >= 0
-
 		wrapped := append(fragmentWrapper, content...)
 		htmlNodes, parseErr := html.ParseFragment(bytes.NewReader(wrapped), &html.Node{
-			Type: html.ElementNode,
-			Data: "body",
+			Type:     html.ElementNode,
+			Data:     "body",
+			DataAtom: atom.Body,
 		})
 		if parseErr != nil {
 			return nil, ErrFailParseFragment
@@ -36,19 +36,9 @@ func parsefragment(document xml.Document, node *xml.XmlNode, content, url []byte
 
 		// Wrap in a container
 		fragDoc := xml.CreateEmptyDocument(document.InputEncoding(), document.OutputEncoding())
-		containerRoot, err := convertFragmentNodes(fragDoc, htmlNodes)
+		root, err = convertFragmentNodes(fragDoc, htmlNodes)
 		if err != nil {
 			return nil, err
-		}
-
-		if containBody {
-			root = containerRoot
-		} else {
-			root = containerRoot.FirstChild()
-			if root != nil {
-				containerRoot.AddPreviousSibling(root)
-				containerRoot.Remove()
-			}
 		}
 	} else {
 		// Wrapped fragment
@@ -77,9 +67,11 @@ func parsefragment(document xml.Document, node *xml.XmlNode, content, url []byte
 }
 
 func convertToHTMLNode(node *xml.XmlNode) *html.Node {
+	nm := node.Name()
 	return &html.Node{
-		Type: html.ElementNode,
-		Data: node.Name(),
+		Type:     html.ElementNode,
+		Data:     nm,
+		DataAtom: atom.Lookup([]byte(nm)),
 	}
 }
 

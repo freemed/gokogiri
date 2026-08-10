@@ -303,3 +303,119 @@ func (n *InternalNode) CountChildElements() int {
 	}
 	return count
 }
+
+// ---- NodeAdapter implementation for xpath ----
+
+func (n *InternalNode) XPathType() int {
+	switch n.Typ {
+	case XML_DOCUMENT_NODE, XML_HTML_DOCUMENT_NODE:
+		return 0 // RootNode
+	case XML_ELEMENT_NODE:
+		return 1 // ElementNode
+	case XML_ATTRIBUTE_NODE:
+		return 2 // AttributeNode
+	case XML_TEXT_NODE, XML_CDATA_SECTION_NODE:
+		return 3 // TextNode
+	case XML_COMMENT_NODE:
+		return 4 // CommentNode
+	default:
+		return 3 // TextNode fallback
+	}
+}
+
+func (n *InternalNode) XPathName() string {
+	return n.Name
+}
+
+func (n *InternalNode) XPathValue() string {
+	switch n.Typ {
+	case XML_TEXT_NODE, XML_CDATA_SECTION_NODE, XML_COMMENT_NODE:
+		return n.Content
+	case XML_PI_NODE:
+		return n.Content
+	case XML_ATTRIBUTE_NODE:
+		// Attribute value is in Content field for attribute wrapper nodes
+		return n.Content
+	case XML_ELEMENT_NODE:
+		// Concatenate all text child content
+		var buf string
+		for c := n.Children; c != nil; c = c.Next {
+			if c.Typ == XML_TEXT_NODE || c.Typ == XML_CDATA_SECTION_NODE {
+				buf += c.Content
+			}
+		}
+		return buf
+	}
+	return ""
+}
+
+func (n *InternalNode) XPathPrefix() string {
+	if n.Ns != nil {
+		return n.Ns.Prefix
+	}
+	return ""
+}
+
+func (n *InternalNode) XPathNamespaceURI() string {
+	if n.Ns != nil {
+		return n.Ns.Href
+	}
+	return ""
+}
+
+func (n *InternalNode) XPathParent() interface{} {
+	if n.Parent == nil {
+		return nil
+	}
+	return n.Parent
+}
+
+func (n *InternalNode) XPathFirstChild() interface{} {
+	if n.Children == nil {
+		return nil
+	}
+	return n.Children
+}
+
+func (n *InternalNode) XPathNextSibling() interface{} {
+	if n.Next == nil {
+		return nil
+	}
+	return n.Next
+}
+
+func (n *InternalNode) XPathPrevSibling() interface{} {
+	if n.Prev == nil {
+		return nil
+	}
+	return n.Prev
+}
+
+func (n *InternalNode) XPathAttributes() interface{} {
+	var attrs []xpathAttr
+	for _, a := range n.Props {
+		ra := xpathAttr{Name: a.Name, Value: a.Value}
+		if a.Ns != nil {
+			ra.NamespaceURI = a.Ns.Href
+			ra.Prefix = a.Ns.Prefix
+		}
+		attrs = append(attrs, ra)
+	}
+	return attrs
+}
+
+// xpathAttr is an internal type matching xpath.AttrAdapter fields.
+type xpathAttr struct {
+	Name         string
+	Value        string
+	Prefix       string
+	NamespaceURI string
+}
+
+func (n *InternalNode) XPathCopy() interface{} {
+	if n.Doc != nil {
+		return n.DeepCopy(n.Doc, -1)
+	}
+	// Fallback: shallow copy with no doc
+	return n.DeepCopy(nil, -1)
+}

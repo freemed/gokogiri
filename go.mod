@@ -17,6 +17,7 @@ require (
 )
 
 require (
+	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/freemed/gokogiri/help v0.0.0-20260127145523-0d7d36b651ea // indirect
 	github.com/freemed/gokogiri/xpath v0.0.0-20260127145523-0d7d36b651ea // indirect
 	golang.org/x/net v0.57.0 // indirect

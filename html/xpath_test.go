@@ -12,7 +12,7 @@ func TestUnfoundFuncInXpath(t *testing.T) {
 		return
 	}
 
-	html := doc.Root().FirstChild()
+	html := doc.Root().FirstChild().NextSibling()
 	results, _ := html.Search("./div[matches(text(), 'foo')]")
 	if results != nil {
 		t.Error("should return nil because the function is not found")
@@ -30,7 +30,7 @@ func TestXpathEmptyResult(t *testing.T) {
 		return
 	}
 
-	html := doc.Root().FirstChild()
+	html := doc.Root().FirstChild().NextSibling()
 	results, err := html.Search("./div[@calass='cool']")
 	if err != nil {
 		t.Error("Xpath eval should not return nil")

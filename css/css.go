@@ -59,17 +59,21 @@ const (
 var pattern [NUM_LEXEMES]string
 
 func init() {
+	// In Go raw strings, regexp character classes like \w, \d, \s
+	// need a SINGLE backslash (e.g. `\w`), NOT double (`\\w`).
+	// `\\w` in raw string → Go string "\\w" → regexp matches "literal \ + w"
+	// `\w`  in raw string → Go string "\w"  → regexp matches word characters
 	pattern[SPACES] = `\s+`
 	pattern[COMMA] = `\s*,`
 	pattern[UNIVERSAL] = `\*`
 	pattern[TYPE] = `[_a-zA-Z]\w*`
 	pattern[ELEMENT] = `(\*|[_a-zA-Z]\w*)`
 	pattern[CLASS] = `\.[-\w]+`
-	pattern[ID] = `\#[-\\w]+`
+	pattern[ID] = `#[-\w]+`
 	pattern[LBRACKET] = `\[`
 	pattern[RBRACKET] = `\]`
 	pattern[ATTR_NAME] = `[-_:a-zA-Z][-\w:.]*`
-	pattern[ATTR_VALUE] = `(\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*')`
+	pattern[ATTR_VALUE] = `("[^"]*"|'[^']*')`
 	pattern[EQUALS] = `=`
 	pattern[CONTAINS_CLASS] = `~=`
 	pattern[DASH_PREFIXED] = `\|=`

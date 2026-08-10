@@ -377,18 +377,45 @@ func (document *XmlDocument) RecursivelyRemoveNamespaces() (err error) {
 
 // String delegates to the embedded Node.
 func (document *XmlDocument) String() string {
+	s := ""
 	if document.Node != nil {
-		return document.Node.String()
+		s = document.Node.String()
 	}
-	return ""
+	// Prepend XML declaration for XML documents
+	if document.Type == XML_DOCUMENT_NODE {
+		enc := document.OutEncoding
+		if len(enc) == 0 {
+			enc = DefaultEncodingBytes
+		}
+		return "<?xml version=\"1.0\" encoding=\"" + string(enc) + "\"?>\n" + s
+	}
+	return s
 }
 
-// ToBuffer delegates to the embedded Node.
-func (document *XmlDocument) ToBuffer(outputBuffer []byte) []byte {
+// ToXml delegates to the embedded Node.
+func (document *XmlDocument) ToXml(encoding, outputBuffer []byte) ([]byte, int) {
 	if document.Node != nil {
-		return document.Node.ToBuffer(outputBuffer)
+		return document.Node.(*XmlNode).ToXml(encoding, outputBuffer)
 	}
-	return nil
+	return nil, 0
+}
+
+// ToBuffer delegates to the embedded Node and adds XML declaration for documents.
+func (document *XmlDocument) ToBuffer(outputBuffer []byte) []byte {
+	var result []byte
+	if document.Node != nil {
+		result = document.Node.ToBuffer(outputBuffer)
+	}
+	// Prepend XML declaration for XML documents
+	if document.Type == XML_DOCUMENT_NODE {
+		enc := document.OutEncoding
+		if len(enc) == 0 {
+			enc = DefaultEncodingBytes
+		}
+		decl := []byte("<?xml version=\"1.0\" encoding=\"" + string(enc) + "\"?>\n")
+		result = append(decl, result...)
+	}
+	return result
 }
 
 // Search delegates to the embedded Node.

@@ -108,6 +108,9 @@ func Parse(content, inEncoding, url []byte, options xml.ParseOption, outEncoding
 		xml.StripBlankNodes(actualRoot)
 	}
 
+	// Build ID index for NodeById lookups
+	inner.IDIndex = buildHTMLIDIndex(actualRoot)
+
 	doc = NewDocument(inner, contentLen, []byte(inEnc), []byte(outEnc))
 	return
 }
@@ -255,4 +258,32 @@ func setMetaEncoding(xmlNode *xml.XmlNode, encoding string) error {
 		}
 	}
 	return ErrSetMetaEncoding
+}
+
+// buildHTMLIDIndex walks the tree and indexes elements with id attributes.
+func buildHTMLIDIndex(root *xml.InternalNode) map[string]*xml.InternalNode {
+	if root == nil {
+		return nil
+	}
+	index := make(map[string]*xml.InternalNode)
+	var walk func(n *xml.InternalNode)
+	walk = func(n *xml.InternalNode) {
+		if n.Typ == xml.XML_ELEMENT_NODE {
+			for _, a := range n.Props {
+				if strings.ToLower(a.Name) == "id" && a.Ns == nil && a.Value != "" {
+					if _, exists := index[a.Value]; !exists {
+						index[a.Value] = n
+					}
+				}
+			}
+		}
+		for c := n.Children; c != nil; c = c.Next {
+			walk(c)
+		}
+	}
+	walk(root)
+	if len(index) == 0 {
+		return nil
+	}
+	return index
 }

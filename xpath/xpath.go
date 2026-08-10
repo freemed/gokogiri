@@ -2,6 +2,8 @@ package xpath
 
 import (
 	"errors"
+
+	antchfx "github.com/antchfx/xpath"
 )
 
 // XPathObjectType mirrors the libxml2 XPath result types.
@@ -22,11 +24,15 @@ const (
 
 // XPath is the XPath evaluation context.
 type XPath struct {
-	resultType XPathObjectType
-	resultNodes []interface{}
+	resultType   XPathObjectType
+	resultNodes  []interface{}
 	resultString string
 	resultNumber float64
 	resultBool   bool
+	namespaces   map[string]string
+	resolver     VariableScope
+	position     int
+	size         int
 }
 
 // XPathFunction is called for registered XPath extension functions.
@@ -44,12 +50,14 @@ func NewXPath(docPtr interface{}) (xpath *XPath) {
 	if docPtr == nil {
 		return nil
 	}
-	return &XPath{}
+	return &XPath{
+		namespaces: make(map[string]string),
+	}
 }
 
 // RegisterNamespace registers a namespace prefix/URI pair.
 func (xpath *XPath) RegisterNamespace(prefix, href string) bool {
-	// Phase 4 will implement with antchfx/xpath
+	xpath.namespaces[prefix] = href
 	return true
 }
 
@@ -68,13 +76,55 @@ func (xpath *XPath) EvaluateAsNodeset(nodePtr interface{}, xpathExpr *Expression
 
 // Evaluate runs an XPath expression against a context node.
 func (xpath *XPath) Evaluate(nodePtr interface{}, xpathExpr *Expression) (err error) {
-	if nodePtr == nil || xpathExpr == nil {
+	if nodePtr == nil || xpathExpr == nil || xpathExpr.expr == nil {
 		return errors.New("nil node or expression in xpath evaluate")
 	}
-	// Phase 4: full antchfx/xpath evaluation
-	// For now return empty
-	xpath.resultType = XPATH_NODESET
-	xpath.resultNodes = nil
+
+	// Get a navigator from the node
+	adapter, ok := nodePtr.(NodeAdapter)
+	if !ok {
+		return errors.New("node does not implement NodeAdapter")
+	}
+
+	nav := NewNavigator(adapter)
+
+	// Evaluate with antchfx/xpath
+	result := xpathExpr.expr.Evaluate(nav)
+
+	// Store result based on type
+	switch v := result.(type) {
+	case *antchfx.NodeIterator:
+		xpath.resultType = XPATH_NODESET
+		xpath.resultNodes = nil
+		// Collect all nodes
+		for v.MoveNext() {
+			current := v.Current()
+			if nn, ok := current.(*nodeNavigator); ok {
+				xpath.resultNodes = append(xpath.resultNodes, nn.node)
+			}
+		}
+	case bool:
+		xpath.resultType = XPATH_BOOLEAN
+		xpath.resultBool = v
+	case float64:
+		xpath.resultType = XPATH_NUMBER
+		xpath.resultNumber = v
+	case string:
+		xpath.resultType = XPATH_STRING
+		xpath.resultString = v
+	default:
+		// Fallback: try NodeIterator via Select
+		iter := xpathExpr.expr.Select(nav)
+		xpath.resultType = XPATH_NODESET
+		xpath.resultNodes = nil
+		for iter.MoveNext() {
+			current := iter.Current()
+			if nn, ok := current.(*nodeNavigator); ok {
+				xpath.resultNodes = append(xpath.resultNodes, nn.node)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -94,8 +144,23 @@ func (xpath *XPath) ResultAsNodeset() (nodes []interface{}, err error) {
 
 // ResultAsString coerces the result to a string.
 func (xpath *XPath) ResultAsString() (val string, err error) {
-	if xpath.resultType == XPATH_STRING {
+	switch xpath.resultType {
+	case XPATH_STRING:
 		return xpath.resultString, nil
+	case XPATH_NUMBER:
+		return "", errors.New("cannot convert number to string")
+	case XPATH_BOOLEAN:
+		if xpath.resultBool {
+			return "true", nil
+		}
+		return "false", nil
+	case XPATH_NODESET:
+		if len(xpath.resultNodes) > 0 {
+			if adapter, ok := xpath.resultNodes[0].(NodeAdapter); ok {
+				return adapter.XPathValue(), nil
+			}
+		}
+		return "", nil
 	}
 	return "", errors.New("not a string result")
 }
@@ -112,17 +177,18 @@ func (xpath *XPath) ResultAsBoolean() (val bool, err error) {
 
 // SetResolver attaches a variable/function resolver.
 func (xpath *XPath) SetResolver(v VariableScope) {
-	// Phase 4 implementation
+	xpath.resolver = v
 }
 
 // SetContextPosition sets the position/size for position()/last().
 func (xpath *XPath) SetContextPosition(position, size int) {
-	// Phase 4 implementation
+	xpath.position = position
+	xpath.size = size
 }
 
 // GetContextPosition returns the current position/size.
 func (xpath *XPath) GetContextPosition() (position, size int) {
-	return 0, 0
+	return xpath.position, xpath.size
 }
 
 // Free releases resources.
@@ -132,6 +198,5 @@ func (xpath *XPath) Free() {
 
 // XPathObjectToValue converts a raw XPath result to a Go value.
 func XPathObjectToValue(obj interface{}) (result interface{}) {
-	// Phase 4
-	return nil
+	return obj
 }

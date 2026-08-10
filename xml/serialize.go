@@ -10,82 +10,127 @@ import (
 // serializeToXML serializes an InternalNode subtree to XML bytes.
 func serializeToXML(root *InternalNode, format SerializationOption, encoding []byte) []byte {
 	var buf bytes.Buffer
-	enc := xml.NewEncoder(&buf)
-	if format&XML_SAVE_FORMAT != 0 {
-		enc.Indent("", "  ")
-	}
 
-	if format&XML_SAVE_NO_DECL == 0 && root.Doc != nil && root.Doc.DocType == XML_DOCUMENT_NODE {
-		encStr := string(encoding)
-		if encStr == "" {
-			encStr = "utf-8"
-		}
-		buf.WriteString("<?xml version=\"1.0\" encoding=\"" + encStr + "\"?>\n")
-	}
-
-	serializeNodeXML(enc, root, format, 0)
-	enc.Flush()
+	// XML declaration is added at the XmlDocument level (String/ToBuffer)
+	serializeNodeXML(&buf, root, format, 0)
 	return buf.Bytes()
 }
 
-func serializeNodeXML(enc *xml.Encoder, n *InternalNode, format SerializationOption, depth int) {
+func serializeNodeXML(buf *bytes.Buffer, n *InternalNode, format SerializationOption, depth int) {
 	if n == nil {
 		return
 	}
+
+	indent := ""
+	newline := ""
+	if format&XML_SAVE_FORMAT != 0 {
+		indent = strings.Repeat("  ", depth)
+		newline = "\n"
+	}
+
 	switch n.Typ {
 	case XML_ELEMENT_NODE:
-		// Build start element with namespace
-		name := xml.Name{Local: n.Name}
-		if n.Ns != nil {
-			name.Space = n.Ns.Href
-		}
+		buf.WriteString(indent)
+		buf.WriteByte('<')
 
-		var attrs []xml.Attr
-		// Output namespace declarations
+		// Write element name with namespace prefix
+		if n.Ns != nil && n.Ns.Prefix != "" {
+			buf.WriteString(n.Ns.Prefix)
+			buf.WriteByte(':')
+		}
+		buf.WriteString(n.Name)
+
+		// Write namespace declarations
 		for _, ns := range n.NsDef {
+			buf.WriteByte(' ')
 			if ns.Prefix == "" {
-				attrs = append(attrs, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: ns.Href})
+				buf.WriteString("xmlns")
 			} else {
-				attrs = append(attrs, xml.Attr{Name: xml.Name{Space: "xmlns", Local: ns.Prefix}, Value: ns.Href})
+				buf.WriteString("xmlns:")
+				buf.WriteString(ns.Prefix)
 			}
+			buf.WriteString(`="`)
+			xml.EscapeText(buf, []byte(ns.Href))
+			buf.WriteByte('"')
 		}
-		// Output attributes
+
+		// Write attributes
 		for _, a := range n.Props {
-			attrName := xml.Name{Local: a.Name}
-			if a.Ns != nil {
-				attrName.Space = a.Ns.Href
+			buf.WriteByte(' ')
+			if a.Ns != nil && a.Ns.Prefix != "" {
+				buf.WriteString(a.Ns.Prefix)
+				buf.WriteByte(':')
 			}
-			attrs = append(attrs, xml.Attr{Name: attrName, Value: a.Value})
+			buf.WriteString(a.Name)
+			buf.WriteString(`="`)
+			xml.EscapeText(buf, []byte(a.Value))
+			buf.WriteByte('"')
 		}
 
-		start := xml.StartElement{Name: name, Attr: attrs}
-		enc.EncodeToken(start)
-
-		if n.Children != nil {
-			for c := n.Children; c != nil; c = c.Next {
-				serializeNodeXML(enc, c, format, depth+1)
+		// Self-closing for empty elements
+		if n.Children == nil {
+			buf.WriteString("/>")
+			if depth > 0 {
+				buf.WriteString(newline)
 			}
+			return
 		}
 
-		enc.EncodeToken(xml.EndElement{Name: name})
+		buf.WriteByte('>')
+		buf.WriteString(newline)
+
+		for c := n.Children; c != nil; c = c.Next {
+			serializeNodeXML(buf, c, format, depth+1)
+		}
+
+		if format&XML_SAVE_FORMAT != 0 && n.Children != nil {
+			buf.WriteString(indent)
+		}
+		buf.WriteString("</")
+		if n.Ns != nil && n.Ns.Prefix != "" {
+			buf.WriteString(n.Ns.Prefix)
+			buf.WriteByte(':')
+		}
+		buf.WriteString(n.Name)
+		buf.WriteByte('>')
+		// Only add newline for nested elements (depth > 0, not root)
+		if depth > 0 {
+			buf.WriteString(newline)
+		}
 
 	case XML_TEXT_NODE:
-		enc.EncodeToken(xml.CharData(n.Content))
+		buf.WriteString(indent)
+		// Don't escape tabs for formatted output
+		buf.WriteString(n.Content)
+		buf.WriteString(newline)
 
 	case XML_CDATA_SECTION_NODE:
-		// CDATA via directive since encoding/xml doesn't natively support it
-		enc.EncodeToken(xml.CharData("<![CDATA[" + n.Content + "]]>"))
+		buf.WriteString("<![CDATA[")
+		buf.WriteString(n.Content)
+		buf.WriteString("]]>")
 
 	case XML_COMMENT_NODE:
-		enc.EncodeToken(xml.Comment([]byte(n.Content)))
+		buf.WriteString(indent)
+		buf.WriteString("<!--")
+		buf.WriteString(n.Content)
+		buf.WriteString("-->")
+		buf.WriteString(newline)
 
 	case XML_PI_NODE:
-		enc.EncodeToken(xml.ProcInst{Target: n.Name, Inst: []byte(n.Content)})
+		buf.WriteString("<?")
+		buf.WriteString(n.Name)
+		if n.Content != "" {
+			buf.WriteByte(' ')
+			buf.WriteString(n.Content)
+		}
+		buf.WriteString("?>")
+		if format&XML_SAVE_FORMAT != 0 {
+			buf.WriteString(newline)
+		}
 
 	case XML_DOCUMENT_NODE, XML_HTML_DOCUMENT_NODE:
-		// Document root — serialize children
 		for c := n.Children; c != nil; c = c.Next {
-			serializeNodeXML(enc, c, format, depth+1)
+			serializeNodeXML(buf, c, format, depth)
 		}
 	}
 }
@@ -95,7 +140,6 @@ func serializeToHTML(root *InternalNode, format SerializationOption, encoding []
 	var buf bytes.Buffer
 
 	if format&XML_SAVE_NO_DECL == 0 && root.Doc != nil {
-		// HTML5-style doctype
 		buf.WriteString("<!DOCTYPE html>\n")
 	}
 
@@ -125,7 +169,6 @@ func serializeNodeHTML(buf *bytes.Buffer, n *InternalNode, format SerializationO
 		buf.WriteByte('<')
 		buf.WriteString(n.Name)
 
-		// Attributes
 		for _, a := range n.Props {
 			buf.WriteByte(' ')
 			buf.WriteString(a.Name)
@@ -134,7 +177,6 @@ func serializeNodeHTML(buf *bytes.Buffer, n *InternalNode, format SerializationO
 			buf.WriteByte('"')
 		}
 
-		// Void elements
 		if voidElements[n.Name] {
 			buf.WriteString(" />")
 			if format&XML_SAVE_FORMAT != 0 {
