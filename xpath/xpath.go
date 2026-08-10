@@ -2,6 +2,7 @@ package xpath
 
 import (
 	"errors"
+	"strconv"
 
 	antchfx "github.com/antchfx/xpath"
 )
@@ -21,6 +22,27 @@ const (
 	XPATH_USERS                       = 8
 	XPATH_XSLT_TREE                   = 9
 )
+
+// AttrNode is a lightweight attribute node returned by XPath attribute queries.
+// It implements NodeAdapter so it can be collected as a nodeset result.
+type AttrNode struct {
+	Name_         string
+	Value_        string
+	Prefix_       string
+	NamespaceURI_ string
+}
+
+func (a *AttrNode) XPathType() int              { return 2 } // AttributeNode
+func (a *AttrNode) XPathName() string            { return a.Name_ }
+func (a *AttrNode) XPathValue() string           { return a.Value_ }
+func (a *AttrNode) XPathPrefix() string          { return a.Prefix_ }
+func (a *AttrNode) XPathNamespaceURI() string    { return a.NamespaceURI_ }
+func (a *AttrNode) XPathParent() interface{}     { return nil }
+func (a *AttrNode) XPathFirstChild() interface{}  { return nil }
+func (a *AttrNode) XPathNextSibling() interface{} { return nil }
+func (a *AttrNode) XPathPrevSibling() interface{} { return nil }
+func (a *AttrNode) XPathAttributes() interface{}  { return nil }
+func (a *AttrNode) XPathCopy() interface{}        { return a }
 
 // XPath is the XPath evaluation context.
 type XPath struct {
@@ -100,7 +122,7 @@ func (xpath *XPath) Evaluate(nodePtr interface{}, xpathExpr *Expression) (err er
 		for v.MoveNext() {
 			current := v.Current()
 			if nn, ok := current.(*nodeNavigator); ok {
-				xpath.resultNodes = append(xpath.resultNodes, nn.node)
+				xpath.resultNodes = append(xpath.resultNodes, nn.resultNode())
 			}
 		}
 	case bool:
@@ -120,7 +142,7 @@ func (xpath *XPath) Evaluate(nodePtr interface{}, xpathExpr *Expression) (err er
 		for iter.MoveNext() {
 			current := iter.Current()
 			if nn, ok := current.(*nodeNavigator); ok {
-				xpath.resultNodes = append(xpath.resultNodes, nn.node)
+				xpath.resultNodes = append(xpath.resultNodes, nn.resultNode())
 			}
 		}
 	}
@@ -148,7 +170,7 @@ func (xpath *XPath) ResultAsString() (val string, err error) {
 	case XPATH_STRING:
 		return xpath.resultString, nil
 	case XPATH_NUMBER:
-		return "", errors.New("cannot convert number to string")
+		return strconv.FormatFloat(xpath.resultNumber, 'f', -1, 64), nil
 	case XPATH_BOOLEAN:
 		if xpath.resultBool {
 			return "true", nil
@@ -171,8 +193,22 @@ func (xpath *XPath) ResultAsNumber() (val float64, err error) {
 }
 
 // ResultAsBoolean coerces the result to a boolean.
+// In XPath 1.0:
+//   - A nodeset is true if it is non-empty.
+//   - A string is true if it is non-empty.
+//   - A number is true if it is non-zero and not NaN.
 func (xpath *XPath) ResultAsBoolean() (val bool, err error) {
-	return xpath.resultBool, nil
+	switch xpath.resultType {
+	case XPATH_BOOLEAN:
+		return xpath.resultBool, nil
+	case XPATH_NODESET:
+		return len(xpath.resultNodes) > 0, nil
+	case XPATH_STRING:
+		return xpath.resultString != "", nil
+	case XPATH_NUMBER:
+		return xpath.resultNumber != 0, nil
+	}
+	return false, nil
 }
 
 // SetResolver attaches a variable/function resolver.

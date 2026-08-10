@@ -1,5 +1,7 @@
 package xml
 
+import "github.com/freemed/gokogiri/xpath"
+
 // InternalNode is the concrete tree node in the pure-Go DOM.
 type InternalNode struct {
 	Typ      NodeType
@@ -392,9 +394,9 @@ func (n *InternalNode) XPathPrevSibling() interface{} {
 }
 
 func (n *InternalNode) XPathAttributes() interface{} {
-	var attrs []xpathAttr
+	var attrs []xpath.AttrAdapter
 	for _, a := range n.Props {
-		ra := xpathAttr{Name: a.Name, Value: a.Value}
+		ra := xpath.AttrAdapter{Name: a.Name, Value: a.Value}
 		if a.Ns != nil {
 			ra.NamespaceURI = a.Ns.Href
 			ra.Prefix = a.Ns.Prefix
@@ -402,14 +404,6 @@ func (n *InternalNode) XPathAttributes() interface{} {
 		attrs = append(attrs, ra)
 	}
 	return attrs
-}
-
-// xpathAttr is an internal type matching xpath.AttrAdapter fields.
-type xpathAttr struct {
-	Name         string
-	Value        string
-	Prefix       string
-	NamespaceURI string
 }
 
 func (n *InternalNode) XPathCopy() interface{} {

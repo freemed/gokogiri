@@ -44,12 +44,18 @@ func (n *nodeNavigator) NodeType() antchfx.NodeType {
 	if n.node == nil {
 		return antchfx.RootNode
 	}
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		return antchfx.AttributeNode
+	}
 	return antchfx.NodeType(n.node.XPathType())
 }
 
 func (n *nodeNavigator) LocalName() string {
 	if n.node == nil {
 		return ""
+	}
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		return n.attrs[n.attrIdx].Name
 	}
 	return n.node.XPathName()
 }
@@ -58,6 +64,9 @@ func (n *nodeNavigator) Prefix() string {
 	if n.node == nil {
 		return ""
 	}
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		return n.attrs[n.attrIdx].Prefix
+	}
 	return n.node.XPathPrefix()
 }
 
@@ -65,12 +74,18 @@ func (n *nodeNavigator) Value() string {
 	if n.node == nil {
 		return ""
 	}
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		return n.attrs[n.attrIdx].Value
+	}
 	return n.node.XPathValue()
 }
 
 func (n *nodeNavigator) NamespaceURI() string {
 	if n.node == nil {
 		return ""
+	}
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		return n.attrs[n.attrIdx].NamespaceURI
 	}
 	return n.node.XPathNamespaceURI()
 }
@@ -105,6 +120,12 @@ func (n *nodeNavigator) MoveToRoot() {
 }
 
 func (n *nodeNavigator) MoveToParent() bool {
+	if n.attrIdx >= 0 {
+		// When on an attribute, parent is the owning element
+		n.attrIdx = -1
+		n.attrs = nil
+		return true
+	}
 	p := n.node.XPathParent()
 	if p == nil {
 		return false
@@ -230,4 +251,19 @@ func (n *nodeNavigator) MoveTo(other antchfx.NodeNavigator) bool {
 	n.attrIdx = otherNav.attrIdx
 	n.attrs = otherNav.attrs
 	return true
+}
+
+// resultNode returns the current node as a NodeAdapter, creating an AttrNode
+// if the navigator is positioned on an attribute.
+func (n *nodeNavigator) resultNode() NodeAdapter {
+	if n.attrIdx >= 0 && n.attrIdx < len(n.attrs) {
+		a := n.attrs[n.attrIdx]
+		return &AttrNode{
+			Name_:         a.Name,
+			Value_:        a.Value,
+			Prefix_:       a.Prefix,
+			NamespaceURI_: a.NamespaceURI,
+		}
+	}
+	return n.node
 }

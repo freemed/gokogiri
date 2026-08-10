@@ -17,7 +17,13 @@ func Check(path string) (err error) {
 }
 
 // Compile compiles an XPath expression string.
+// Returns nil if the expression cannot be compiled (including on parser panics).
 func Compile(path string) (expr *Expression) {
+	defer func() {
+		if r := recover(); r != nil {
+			expr = nil
+		}
+	}()
 	e, err := antchfx.Compile(path)
 	if err != nil {
 		return nil
