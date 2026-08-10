@@ -195,7 +195,7 @@ func BenchmarkDocOutputToBuffer(b *testing.B) {
 	tests, err := collectTests("document")
 
 	if len(err) > 0 {
-		fmt.Printf(err)
+		fmt.Printf("%s", err)
 		return
 	}
 

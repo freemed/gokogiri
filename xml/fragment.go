@@ -1,15 +1,13 @@
 package xml
 
-//#include "helper.h"
-import "C"
 import (
+	"bytes"
 	"errors"
-	. "github.com/freemed/gokogiri/util"
-	"unsafe"
+	"strings"
 )
 
 type DocumentFragment struct {
-	Node
+	Node        Node
 	InEncoding  []byte
 	OutEncoding []byte
 }
@@ -25,55 +23,51 @@ var ErrEmptyFragment = errors.New("empty xml fragment")
 const initChildrenNumber = 4
 
 func parsefragment(document Document, node *XmlNode, content, url []byte, options ParseOption) (fragment *DocumentFragment, err error) {
-	//wrap the content before parsing
-	content = append(fragmentWrapperStart, content...)
-	content = append(content, fragmentWrapperEnd...)
+	// Wrap content before parsing
+	wrapped := append(fragmentWrapperStart, content...)
+	wrapped = append(wrapped, fragmentWrapperEnd...)
 
-	//set up pointers before calling the C function
-	var contentPtr, urlPtr unsafe.Pointer
-	contentPtr = unsafe.Pointer(&content[0])
-	contentLen := len(content)
-	if len(url) > 0 {
-		url = AppendCStringTerminator(url)
-		urlPtr = unsafe.Pointer(&url[0])
+	// Parse as document
+	doc, parseErr := Parse(wrapped, document.InputEncoding(), url, options, document.OutputEncoding())
+	if parseErr != nil {
+		return nil, ErrFailParseFragment
 	}
+	defer doc.Free()
 
-	var rootElementPtr *C.xmlNode
-
-	if node == nil {
-		inEncoding := document.InputEncoding()
-		var encodingPtr unsafe.Pointer
-		if len(inEncoding) > 0 {
-			encodingPtr = unsafe.Pointer(&inEncoding[0])
-		}
-		rootElementPtr = C.xmlParseFragmentAsDoc(document.DocPtr(), contentPtr, C.int(contentLen), urlPtr, encodingPtr, C.int(options), nil, 0)
-
-	} else {
-		rootElementPtr = C.xmlParseFragment(node.NodePtr(), contentPtr, C.int(contentLen), urlPtr, C.int(options), nil, 0)
-	}
-
-	//Note we've parsed the fragment within the given document
-	//the root is not the root of the document; rather it's the root of the subtree from the fragment
-	root := NewNode(unsafe.Pointer(rootElementPtr), document)
-
-	//the fragment was in invalid
+	// The root element of the parsed doc is our wrapper <root>
+	root := doc.Root()
 	if root == nil {
-		err = ErrFailParseFragment
-		return
+		return nil, ErrFailParseFragment
 	}
 
-	fragment = &DocumentFragment{}
-	fragment.Node = root
-	fragment.InEncoding = document.InputEncoding()
-	fragment.OutEncoding = document.OutputEncoding()
+	// Extract children of <root> — they are the fragment nodes
+	var fragChildren []Node
+	for child := root.FirstChild(); child != nil; child = child.NextSibling() {
+		// Detach from the parse document and re-parent to the target document
+		childInner := getInternalNode(child)
+		if childInner != nil {
+			childInner.Detach()
+			childInner.Doc = document.doc()
+		}
+		fragChildren = append(fragChildren, child)
+	}
+
+	// Create fragment with first child as root node
+	if len(fragChildren) == 0 {
+		return nil, ErrEmptyFragment
+	}
+
+	fragment = &DocumentFragment{
+		Node:        fragChildren[0],
+		InEncoding:  document.InputEncoding(),
+		OutEncoding: document.OutputEncoding(),
+	}
 
 	document.BookkeepFragment(fragment)
 	return
 }
 
 func ParseFragment(content, inEncoding, url []byte, options ParseOption, outEncoding []byte) (fragment *DocumentFragment, err error) {
-	inEncoding = AppendCStringTerminator(inEncoding)
-	outEncoding = AppendCStringTerminator(outEncoding)
 	document := CreateEmptyDocument(inEncoding, outEncoding)
 	fragment, err = parsefragment(document, nil, content, url, options)
 	return
@@ -85,11 +79,16 @@ func (fragment *DocumentFragment) Remove() {
 
 func (fragment *DocumentFragment) Children() []Node {
 	nodes := make([]Node, 0, initChildrenNumber)
-	child := fragment.FirstChild()
-	for ; child != nil; child = child.NextSibling() {
+	// The fragment nodes are siblings under the original wrapper root.
+	// fragment.Node is the first one; iterate through its siblings.
+	for child := fragment.Node; child != nil; child = child.NextSibling() {
 		nodes = append(nodes, child)
 	}
 	return nodes
+}
+
+func (fragment *DocumentFragment) FirstChild() Node {
+	return fragment.Node.FirstChild()
 }
 
 func (fragment *DocumentFragment) ToBuffer(outputBuffer []byte) []byte {
@@ -112,4 +111,34 @@ func (fragment *DocumentFragment) String() string {
 		return ""
 	}
 	return string(b)
+}
+
+// Search delegates to the fragment's Node.
+func (fragment *DocumentFragment) Search(data interface{}) ([]Node, error) {
+	return fragment.Node.Search(data)
+}
+
+// Clean whitespace bytes helper
+var whitespaceBytes = []byte(" \t\r\n")
+
+func trimWhitespaceBytes(b []byte) []byte {
+	for len(b) > 0 {
+		if bytes.IndexByte(whitespaceBytes, b[0]) >= 0 {
+			b = b[1:]
+		} else {
+			break
+		}
+	}
+	for len(b) > 0 {
+		if bytes.IndexByte(whitespaceBytes, b[len(b)-1]) >= 0 {
+			b = b[:len(b)-1]
+		} else {
+			break
+		}
+	}
+	return b
+}
+
+func init() {
+	_ = strings.TrimSpace // keep import
 }

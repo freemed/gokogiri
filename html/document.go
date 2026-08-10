@@ -1,39 +1,29 @@
 package html
 
-/*
-#cgo pkg-config: libxml-2.0
-
-#include <libxml/HTMLtree.h>
-#include <libxml/HTMLparser.h>
-#include "helper.h"
-*/
-import "C"
-
 import (
+	"bytes"
 	"errors"
-	"github.com/freemed/gokogiri/help"
-	. "github.com/freemed/gokogiri/util"
+	"strings"
+
 	"github.com/freemed/gokogiri/xml"
-	//"runtime"
-	"unsafe"
+	"golang.org/x/net/html"
 )
 
-//xml parse option
+// HTML parse options — mirror XML parse option constants.
 const (
-	HTML_PARSE_RECOVER   xml.ParseOption = 1 << 0  /* Relaxed parsing */
-	HTML_PARSE_NODEFDTD  xml.ParseOption = 1 << 2  /* do not default a doctype if not found */
-	HTML_PARSE_NOERROR   xml.ParseOption = 1 << 5  /* suppress error reports */
-	HTML_PARSE_NOWARNING xml.ParseOption = 1 << 6  /* suppress warning reports */
-	HTML_PARSE_PEDANTIC  xml.ParseOption = 1 << 7  /* pedantic error reporting */
-	HTML_PARSE_NOBLANKS  xml.ParseOption = 1 << 8  /* remove blank nodes */
-	HTML_PARSE_NONET     xml.ParseOption = 1 << 11 /* Forbid network access */
-	HTML_PARSE_NOIMPLIED xml.ParseOption = 1 << 13 /* Do not add implied html/body... elements */
-	HTML_PARSE_COMPACT   xml.ParseOption = 1 << 16 /* compact small text nodes */
+	HTML_PARSE_RECOVER   xml.ParseOption = 1 << 0
+	HTML_PARSE_NODEFDTD  xml.ParseOption = 1 << 2
+	HTML_PARSE_NOERROR   xml.ParseOption = 1 << 5
+	HTML_PARSE_NOWARNING xml.ParseOption = 1 << 6
+	HTML_PARSE_PEDANTIC  xml.ParseOption = 1 << 7
+	HTML_PARSE_NOBLANKS  xml.ParseOption = 1 << 8
+	HTML_PARSE_NONET     xml.ParseOption = 1 << 11
+	HTML_PARSE_NOIMPLIED xml.ParseOption = 1 << 13
+	HTML_PARSE_COMPACT   xml.ParseOption = 1 << 16
 )
 
 const EmptyHtmlDoc = ""
 
-//default parsing option: relax parsing
 var DefaultParseOption xml.ParseOption = HTML_PARSE_RECOVER |
 	HTML_PARSE_NONET |
 	HTML_PARSE_NOERROR |
@@ -43,90 +33,226 @@ type HtmlDocument struct {
 	*xml.XmlDocument
 }
 
-//default encoding in byte slice
 var DefaultEncodingBytes = []byte(xml.DefaultEncoding)
 var emptyHtmlDocBytes = []byte(EmptyHtmlDoc)
 
 var ErrSetMetaEncoding = errors.New("Set Meta Encoding failed")
 var ERR_FAILED_TO_PARSE_HTML = errors.New("failed to parse html input")
-var emptyStringBytes = []byte{0}
 
-//create a document
-func NewDocument(p unsafe.Pointer, contentLen int, inEncoding, outEncoding []byte) (doc *HtmlDocument) {
+// NewDocument creates an HtmlDocument from internal nodes.
+func NewDocument(inner *xml.InternalDoc, contentLen int, inEncoding, outEncoding []byte) (doc *HtmlDocument) {
 	doc = &HtmlDocument{}
-	doc.XmlDocument = xml.NewDocument(p, contentLen, inEncoding, outEncoding)
+	doc.XmlDocument = xml.NewDocument(inner, contentLen, inEncoding, outEncoding)
 	doc.Me = doc
-	node := doc.Node.(*xml.XmlNode)
-	node.Document = doc
-	//runtime.SetFinalizer(doc, (*HtmlDocument).Free)
 	return
 }
 
-//parse a string to document
-func Parse(content, inEncoding, url []byte, options xml.ParseOption, outEncoding []byte) (doc *HtmlDocument, err error) {
-	inEncoding = AppendCStringTerminator(inEncoding)
-	outEncoding = AppendCStringTerminator(outEncoding)
-
-	var docPtr *C.xmlDoc
-	contentLen := len(content)
-
-	if contentLen > 0 {
-		var contentPtr, urlPtr, encodingPtr unsafe.Pointer
-
-		contentPtr = unsafe.Pointer(&content[0])
-		if len(url) > 0 {
-			url = AppendCStringTerminator(url)
-			urlPtr = unsafe.Pointer(&url[0])
-		}
-		if len(inEncoding) > 0 {
-			encodingPtr = unsafe.Pointer(&inEncoding[0])
-		}
-
-		docPtr = C.htmlParse(contentPtr, C.int(contentLen), urlPtr, encodingPtr, C.int(options), nil, 0)
-
-		if docPtr == nil {
-			err = ERR_FAILED_TO_PARSE_HTML
-		} else {
-			doc = NewDocument(unsafe.Pointer(docPtr), contentLen, inEncoding, outEncoding)
-		}
-	}
-	if docPtr == nil {
-		doc = CreateEmptyDocument(inEncoding, outEncoding)
-	}
-	return
-}
-
+// CreateEmptyDocument creates an empty HTML document.
 func CreateEmptyDocument(inEncoding, outEncoding []byte) (doc *HtmlDocument) {
-	help.LibxmlInitParser()
-	docPtr := C.htmlNewDoc(nil, nil)
-	doc = NewDocument(unsafe.Pointer(docPtr), 0, inEncoding, outEncoding)
+	inner := &xml.InternalDoc{
+		DocType:       xml.XML_HTML_DOCUMENT_NODE,
+		UnlinkedNodes: make(map[*xml.InternalNode]bool),
+	}
+	doc = NewDocument(inner, 0, inEncoding, outEncoding)
 	return
 }
 
+// Parse parses HTML content into an HtmlDocument.
+func Parse(content, inEncoding, url []byte, options xml.ParseOption, outEncoding []byte) (doc *HtmlDocument, err error) {
+	contentLen := len(content)
+	if contentLen == 0 {
+		return CreateEmptyDocument(inEncoding, outEncoding), nil
+	}
+
+	// Use golang.org/x/net/html for parsing
+	r := bytes.NewReader(content)
+	htmlNode, parseErr := html.Parse(r)
+	if parseErr != nil {
+		return nil, ERR_FAILED_TO_PARSE_HTML
+	}
+
+	// Convert golang.org/x/net/html nodes to our internal nodes
+	inEnc := string(inEncoding)
+	if inEnc == "" {
+		inEnc = "utf-8"
+	}
+	outEnc := string(outEncoding)
+	if outEnc == "" {
+		outEnc = "utf-8"
+	}
+
+	docRoot := convertHTMLNode(htmlNode)
+
+	// The real root is the first child element (typically <html>)
+	// The document wrapper's children contain the HTML structure
+	var actualRoot *xml.InternalNode
+	if docRoot != nil && docRoot.Children != nil {
+		actualRoot = docRoot.Children
+		actualRoot.Parent = nil // Detach from document wrapper
+	}
+
+	inner := &xml.InternalDoc{
+		DocType:       xml.XML_HTML_DOCUMENT_NODE,
+		Root:          actualRoot,
+		Url:           string(url),
+		InEncoding:    inEnc,
+		OutEncoding:   outEnc,
+		UnlinkedNodes: make(map[*xml.InternalNode]bool),
+	}
+	if actualRoot != nil {
+		actualRoot.Doc = inner
+	}
+
+	// Post-processing
+	if options&xml.XML_PARSE_NOBLANKS != 0 {
+		xml.StripBlankNodes(actualRoot)
+	}
+
+	doc = NewDocument(inner, contentLen, []byte(inEnc), []byte(outEnc))
+	return
+}
+
+// convertHTMLNode recursively converts golang.org/x/net/html nodes to internal nodes.
+func convertHTMLNode(n *html.Node) *xml.InternalNode {
+	if n == nil {
+		return nil
+	}
+
+	var node *xml.InternalNode
+
+	switch n.Type {
+	case html.ElementNode:
+		node = &xml.InternalNode{
+			Typ:   xml.XML_ELEMENT_NODE,
+			Name:  n.Data,
+			Line:  0,
+			Valid: true,
+		}
+		// Attributes
+		for _, attr := range n.Attr {
+			if attr.Namespace == "" && attr.Key == "xmlns" {
+				node.DeclareNamespace("", attr.Val)
+			} else if strings.HasPrefix(attr.Key, "xmlns:") {
+				node.DeclareNamespace(attr.Key[6:], attr.Val)
+			} else {
+				a := &xml.InternalAttr{Name: attr.Key, Value: attr.Val}
+				if attr.Namespace != "" {
+					a.Ns = &xml.InternalNs{Href: attr.Namespace}
+				}
+				node.Props = append(node.Props, a)
+			}
+		}
+
+	case html.TextNode:
+		node = &xml.InternalNode{
+			Typ:     xml.XML_TEXT_NODE,
+			Content: n.Data,
+			Line:    0,
+			Valid:   true,
+		}
+
+	case html.CommentNode:
+		node = &xml.InternalNode{
+			Typ:     xml.XML_COMMENT_NODE,
+			Content: n.Data,
+			Line:    0,
+			Valid:   true,
+		}
+
+	case html.DoctypeNode:
+		// Doctype is handled as metadata, not stored in tree
+		return nil
+
+	case html.DocumentNode:
+		node = &xml.InternalNode{
+			Typ:   xml.XML_HTML_DOCUMENT_NODE,
+			Valid: true,
+		}
+
+	default:
+		return nil
+	}
+
+	// Convert children
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		childNode := convertHTMLNode(child)
+		if childNode != nil {
+			node.AppendChild(childNode)
+		}
+	}
+
+	return node
+}
+
+// ParseFragment parses an HTML fragment.
 func (document *HtmlDocument) ParseFragment(input, url []byte, options xml.ParseOption) (fragment *xml.DocumentFragment, err error) {
-	root := document.Root()
-	if root == nil {
-		fragment, err = parsefragment(document, nil, input, url, options)
-	} else {
-		fragment, err = parsefragment(document, root.XmlNode, input, url, options)
-	}
-	return
+	return parsefragment(document, nil, input, url, options)
 }
 
+// MetaEncoding extracts the encoding from meta tags.
 func (doc *HtmlDocument) MetaEncoding() string {
-	metaEncodingXmlCharPtr := C.htmlGetMetaEncoding((*C.xmlDoc)(doc.DocPtr()))
-	return C.GoString((*C.char)(unsafe.Pointer(metaEncodingXmlCharPtr)))
+	root := doc.Root()
+	if root == nil {
+		return ""
+	}
+	return findMetaEncoding(root.XmlNode)
 }
 
+func findMetaEncoding(xmlNode *xml.XmlNode) string {
+	for child := xmlNode.FirstChild(); child != nil; child = child.NextSibling() {
+		if child.NodeType() == xml.XML_ELEMENT_NODE {
+			if strings.ToLower(child.Name()) == "meta" {
+				if strings.ToLower(child.Attr("http-equiv")) == "content-type" {
+					content := child.Attr("content")
+					for _, part := range strings.Split(content, ";") {
+						part = strings.TrimSpace(part)
+						if strings.HasPrefix(strings.ToLower(part), "charset=") {
+							return part[8:]
+						}
+					}
+				}
+				if charset := child.Attr("charset"); charset != "" {
+					return charset
+				}
+			}
+		}
+		if result := findMetaEncoding(child.(*xml.XmlNode)); result != "" {
+			return result
+		}
+	}
+	return ""
+}
+
+// SetMetaEncoding sets the encoding in meta tags.
 func (doc *HtmlDocument) SetMetaEncoding(encoding string) (err error) {
-	var encodingPtr unsafe.Pointer = nil
-	if len(encoding) > 0 {
-		encodingBytes := AppendCStringTerminator([]byte(encoding))
-		encodingPtr = unsafe.Pointer(&encodingBytes[0])
+	root := doc.Root()
+	if root == nil {
+		return ErrSetMetaEncoding
 	}
-	ret := int(C.htmlSetMetaEncoding((*C.xmlDoc)(doc.DocPtr()), (*C.xmlChar)(encodingPtr)))
-	if ret == -1 {
-		err = ErrSetMetaEncoding
+	err = setMetaEncoding(root.XmlNode, encoding)
+	if err != nil {
+		return ErrSetMetaEncoding
 	}
-	return
+	return nil
+}
+
+func setMetaEncoding(xmlNode *xml.XmlNode, encoding string) error {
+	for child := xmlNode.FirstChild(); child != nil; child = child.NextSibling() {
+		if child.NodeType() == xml.XML_ELEMENT_NODE {
+			if strings.ToLower(child.Name()) == "meta" {
+				if strings.ToLower(child.Attr("http-equiv")) == "content-type" {
+					child.SetAttr("content", "text/html; charset="+encoding)
+					return nil
+				}
+				if child.Attr("charset") != "" {
+					child.SetAttr("charset", encoding)
+					return nil
+				}
+			}
+		}
+		if err := setMetaEncoding(child.(*xml.XmlNode), encoding); err == nil {
+			return nil
+		}
+	}
+	return ErrSetMetaEncoding
 }

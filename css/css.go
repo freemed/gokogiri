@@ -1,12 +1,9 @@
 package css
 
-// package main
-
 import (
 	"fmt"
+	"regexp"
 	"strings"
-
-	"github.com/freemed/rubex"
 )
 
 type Lexeme int
@@ -56,7 +53,6 @@ const (
 	PRECEDES
 	PARENT_OF
 	ANCESTOR_OF
-	// and a counter ... I can't believe I didn't think of this sooner
 	NUM_LEXEMES
 )
 
@@ -69,11 +65,11 @@ func init() {
 	pattern[TYPE] = `[_a-zA-Z]\w*`
 	pattern[ELEMENT] = `(\*|[_a-zA-Z]\w*)`
 	pattern[CLASS] = `\.[-\w]+`
-	pattern[ID] = `\#[-\w]+`
+	pattern[ID] = `\#[-\\w]+`
 	pattern[LBRACKET] = `\[`
 	pattern[RBRACKET] = `\]`
 	pattern[ATTR_NAME] = `[-_:a-zA-Z][-\w:.]*`
-	pattern[ATTR_VALUE] = `("(\\.|[^"\\])*"|'(\\.|[^'\\])*')`
+	pattern[ATTR_VALUE] = `(\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*')`
 	pattern[EQUALS] = `=`
 	pattern[CONTAINS_CLASS] = `~=`
 	pattern[DASH_PREFIXED] = `\|=`
@@ -123,22 +119,19 @@ func Convert(css string, scope Scope) string {
 	return xpath
 }
 
-func allocate() []*rubex.Regexp {
-	// some overlap in here, but it'll make the parsing functions clearer
-	matchers := make([]*rubex.Regexp, 0, NUM_LEXEMES)
+func allocate() []*regexp.Regexp {
+	matchers := make([]*regexp.Regexp, 0, NUM_LEXEMES)
 	for _, p := range pattern {
-		matchers = append(matchers, rubex.MustCompile(`\A`+p))
+		matchers = append(matchers, regexp.MustCompile(`\A`+p))
 	}
 	return matchers
 }
 
-func deallocate(matchers []*rubex.Regexp) {
-	for _, m := range matchers {
-		m.Free()
-	}
+func deallocate(matchers []*regexp.Regexp) {
+	// Go GC handles this — nothing to free
 }
 
-func selectors(matchers []*rubex.Regexp, input []byte, scope Scope) (string, []byte) {
+func selectors(matchers []*regexp.Regexp, input []byte, scope Scope) (string, []byte) {
 	x, input := selector(matchers, input, scope)
 	xs := []string{x}
 	for peek(matchers, COMMA, input) {
@@ -149,7 +142,7 @@ func selectors(matchers []*rubex.Regexp, input []byte, scope Scope) (string, []b
 	return strings.Join(xs, " | "), input
 }
 
-func selector(matchers []*rubex.Regexp, input []byte, scope Scope) (string, []byte) {
+func selector(matchers []*regexp.Regexp, input []byte, scope Scope) (string, []byte) {
 	var combinator Lexeme
 	var xs []string
 	if scope == LOCAL {
@@ -180,7 +173,7 @@ func selector(matchers []*rubex.Regexp, input []byte, scope Scope) (string, []by
 	return strings.Join(xs, ""), input
 }
 
-func sequence(matchers []*rubex.Regexp, input []byte, combinator Lexeme) (string, []byte) {
+func sequence(matchers []*regexp.Regexp, input []byte, combinator Lexeme) (string, []byte) {
 	_, input = token(matchers, SPACES, input)
 	x, ps := "", []string{}
 
@@ -228,7 +221,7 @@ func sequence(matchers []*rubex.Regexp, input []byte, combinator Lexeme) (string
 	return x + pstr, input
 }
 
-func qualifier(matchers []*rubex.Regexp, input []byte) (string, []byte, string) {
+func qualifier(matchers []*regexp.Regexp, input []byte) (string, []byte, string) {
 	p, connective := "", ""
 	if t, remainder := token(matchers, CLASS, input); t != nil {
 		p = fmt.Sprintf(`contains(concat(" ", @class, " "), " %s ")`, string(t[1:]))
@@ -245,7 +238,7 @@ func qualifier(matchers []*rubex.Regexp, input []byte) (string, []byte, string) 
 	return p, input, connective
 }
 
-func pseudoClass(matchers []*rubex.Regexp, input []byte) (string, []byte, string) {
+func pseudoClass(matchers []*regexp.Regexp, input []byte) (string, []byte, string) {
 	class, input := token(matchers, PSEUDO_CLASS, input)
 	var p, connective string
 	switch string(class) {
@@ -276,7 +269,7 @@ func pseudoClass(matchers []*rubex.Regexp, input []byte) (string, []byte, string
 	return p, input, connective
 }
 
-func nth(matchers []*rubex.Regexp, input []byte) (string, []byte) {
+func nth(matchers []*regexp.Regexp, input []byte) (string, []byte) {
 	lparen, input := token(matchers, LPAREN, input)
 	if lparen == nil {
 		panic(":nth-child and :nth-of-type require an parenthesized argument")
@@ -307,7 +300,6 @@ func nth(matchers []*rubex.Regexp, input []byte) (string, []byte) {
 	} else {
 		panic("Invalid argument to :nth-child or :nth-of-type.")
 	}
-	fmt.Println(string(input))
 	_, input = token(matchers, SPACES, input)
 	rparen, input := token(matchers, RPAREN, input)
 	if rparen == nil {
@@ -326,7 +318,7 @@ func invert(op string) string {
 	return op
 }
 
-func negate(matchers []*rubex.Regexp, input []byte) (string, []byte) {
+func negate(matchers []*regexp.Regexp, input []byte) (string, []byte) {
 	_, input = token(matchers, SPACES, input)
 	lparen, input := token(matchers, LPAREN, input)
 	if lparen == nil {
@@ -342,7 +334,7 @@ func negate(matchers []*rubex.Regexp, input []byte) (string, []byte) {
 	return fmt.Sprintf("not(%s)", p), input
 }
 
-func attribute(matchers []*rubex.Regexp, input []byte) (string, []byte) {
+func attribute(matchers []*regexp.Regexp, input []byte) (string, []byte) {
 	_, input = token(matchers, LBRACKET, input)
 	_, input = token(matchers, SPACES, input)
 	name, input := token(matchers, ATTR_NAME, input)
@@ -379,8 +371,6 @@ func attribute(matchers []*rubex.Regexp, input []byte) (string, []byte) {
 	case "^=":
 		expr = fmt.Sprintf("starts-with(@%s, %s)", n, v)
 	case "$=":
-		// oy, libxml doesn't support ends-with
-		// generate something like: div[substring(@class, string-length(@class) - string-length('foo') + 1) = 'foo']
 		expr = fmt.Sprintf("substring(@%s, string-length(@%s) - string-length(%s) + 1) = %s", n, n, v, v)
 	case "*=":
 		expr = fmt.Sprintf("contains(@%s, %s)", n, v)
@@ -388,7 +378,7 @@ func attribute(matchers []*rubex.Regexp, input []byte) (string, []byte) {
 	return expr, input
 }
 
-func token(matchers []*rubex.Regexp, lexeme Lexeme, input []byte) ([]byte, []byte) {
+func token(matchers []*regexp.Regexp, lexeme Lexeme, input []byte) ([]byte, []byte) {
 	matched := matchers[lexeme].Find(input)
 	length := len(matched)
 	if length == 0 {
@@ -397,7 +387,7 @@ func token(matchers []*rubex.Regexp, lexeme Lexeme, input []byte) ([]byte, []byt
 	return matched, input[length:]
 }
 
-func peek(matchers []*rubex.Regexp, lexeme Lexeme, input []byte) bool {
+func peek(matchers []*regexp.Regexp, lexeme Lexeme, input []byte) bool {
 	matched, _ := token(matchers, lexeme, input)
 	return matched != nil
 }

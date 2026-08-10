@@ -1,7 +1,8 @@
 package xml
 
-import "C"
-
+/*
+ElementNode represents an element node in the XML/HTML tree.
+*/
 type ElementNode struct {
 	*XmlNode
 }

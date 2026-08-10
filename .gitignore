@@ -10,3 +10,4 @@ test_output.txt
 jank.yml
 go.sum
 go.work.sum
+.hermes/

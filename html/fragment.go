@@ -1,13 +1,12 @@
 package html
 
-//#include "helper.h"
-import "C"
 import (
 	"bytes"
 	"errors"
-	. "github.com/freemed/gokogiri/util"
+	"strings"
+
 	"github.com/freemed/gokogiri/xml"
-	"unsafe"
+	"golang.org/x/net/html"
 )
 
 var fragmentWrapperStart = []byte("<div>")
@@ -21,63 +20,55 @@ var ErrEmptyFragment = errors.New("empty html fragment")
 const initChildrenNumber = 4
 
 func parsefragment(document xml.Document, node *xml.XmlNode, content, url []byte, options xml.ParseOption) (fragment *xml.DocumentFragment, err error) {
-	//set up pointers before calling the C function
-	var contentPtr, urlPtr unsafe.Pointer
-	if len(url) > 0 {
-		urlPtr = unsafe.Pointer(&url[0])
-	}
-
 	var root xml.Node
+
 	if node == nil {
-		containBody := (bytes.Index(content, bodySigBytes) >= 0)
+		containBody := bytes.Index(content, bodySigBytes) >= 0
 
-		content = append(fragmentWrapper, content...)
-		contentPtr = unsafe.Pointer(&content[0])
-		contentLen := len(content)
-
-		inEncoding := document.InputEncoding()
-		var encodingPtr unsafe.Pointer
-		if len(inEncoding) > 0 {
-			encodingPtr = unsafe.Pointer(&inEncoding[0])
+		wrapped := append(fragmentWrapper, content...)
+		htmlNodes, parseErr := html.ParseFragment(bytes.NewReader(wrapped), &html.Node{
+			Type: html.ElementNode,
+			Data: "body",
+		})
+		if parseErr != nil {
+			return nil, ErrFailParseFragment
 		}
-		htmlPtr := C.htmlParseFragmentAsDoc(document.DocPtr(), contentPtr, C.int(contentLen), urlPtr, encodingPtr, C.int(options), nil, 0)
 
-		//Note we've parsed the fragment within the given document
-		//the root is not the root of the document; rather it's the root of the subtree from the fragment
-		html := xml.NewNode(unsafe.Pointer(htmlPtr), document)
-
-		if html == nil {
-			err = ErrFailParseFragment
-			return
+		// Wrap in a container
+		fragDoc := xml.CreateEmptyDocument(document.InputEncoding(), document.OutputEncoding())
+		containerRoot, err := convertFragmentNodes(fragDoc, htmlNodes)
+		if err != nil {
+			return nil, err
 		}
-		root = html
 
-		if !containBody {
-			root = html.FirstChild()
-			html.AddPreviousSibling(root)
-			html.Remove() //remove html otherwise it's leaked
+		if containBody {
+			root = containerRoot
+		} else {
+			root = containerRoot.FirstChild()
+			if root != nil {
+				containerRoot.AddPreviousSibling(root)
+				containerRoot.Remove()
+			}
 		}
 	} else {
-		//wrap the content
+		// Wrapped fragment
 		newContent := append(fragmentWrapperStart, content...)
 		newContent = append(newContent, fragmentWrapperEnd...)
-		contentPtr = unsafe.Pointer(&newContent[0])
-		contentLen := len(newContent)
-		rootElementPtr := C.htmlParseFragment(node.NodePtr(), contentPtr, C.int(contentLen), urlPtr, C.int(options), nil, 0)
-		if rootElementPtr == nil {
-			//try to parse it as a doc
-			fragment, err = parsefragment(document, nil, content, url, options)
-			return
+
+		htmlNodes, parseErr := html.ParseFragment(bytes.NewReader(newContent), convertToHTMLNode(node))
+		if parseErr != nil || len(htmlNodes) == 0 {
+			// Try parsing as a full document
+			return parsefragment(document, nil, content, url, options)
 		}
-		if rootElementPtr == nil {
-			err = ErrFailParseFragment
-			return
+
+		fragDoc := xml.CreateEmptyDocument(document.InputEncoding(), document.OutputEncoding())
+		root, err = convertFragmentNodes(fragDoc, htmlNodes)
+		if err != nil {
+			return nil, ErrFailParseFragment
 		}
-		root = xml.NewNode(unsafe.Pointer(rootElementPtr), document)
 	}
 
-	fragment = &xml.DocumentFragment{}
-	fragment.Node = root
+	fragment = &xml.DocumentFragment{Node: root}
 	fragment.InEncoding = document.InputEncoding()
 	fragment.OutEncoding = document.OutputEncoding()
 
@@ -85,10 +76,76 @@ func parsefragment(document xml.Document, node *xml.XmlNode, content, url []byte
 	return
 }
 
+func convertToHTMLNode(node *xml.XmlNode) *html.Node {
+	return &html.Node{
+		Type: html.ElementNode,
+		Data: node.Name(),
+	}
+}
+
+func convertFragmentNodes(doc xml.Document, nodes []*html.Node) (xml.Node, error) {
+	if len(nodes) == 0 {
+		return nil, ErrEmptyFragment
+	}
+	var root xml.Node
+	for _, n := range nodes {
+		gNode := convertHTMLToInternal(n)
+		if gNode == nil {
+			continue
+		}
+		xmlNode := xml.NewNode(gNode, doc)
+		if root == nil {
+			root = xmlNode
+		} else {
+			xmlNode.AddPreviousSibling(root)
+			root = xmlNode
+		}
+	}
+	return root, nil
+}
+
+func convertHTMLToInternal(n *html.Node) *xml.InternalNode {
+	if n == nil {
+		return nil
+	}
+	var node *xml.InternalNode
+	switch n.Type {
+	case html.ElementNode:
+		node = &xml.InternalNode{
+			Typ:   xml.XML_ELEMENT_NODE,
+			Name:  n.Data,
+			Valid: true,
+		}
+		for _, attr := range n.Attr {
+			a := &xml.InternalAttr{Name: attr.Key, Value: attr.Val}
+			if attr.Namespace != "" {
+				a.Ns = &xml.InternalNs{Href: attr.Namespace}
+			}
+			node.Props = append(node.Props, a)
+		}
+	case html.TextNode:
+		node = &xml.InternalNode{
+			Typ:     xml.XML_TEXT_NODE,
+			Content: n.Data,
+			Valid:   true,
+		}
+	default:
+		return nil
+	}
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		if childNode := convertHTMLToInternal(child); childNode != nil {
+			node.AppendChild(childNode)
+		}
+	}
+	return node
+}
+
 func ParseFragment(content, inEncoding, url []byte, options xml.ParseOption, outEncoding []byte) (fragment *xml.DocumentFragment, err error) {
-	inEncoding = AppendCStringTerminator(inEncoding)
-	outEncoding = AppendCStringTerminator(outEncoding)
 	document := CreateEmptyDocument(inEncoding, outEncoding)
 	fragment, err = parsefragment(document, nil, content, url, options)
 	return
+}
+
+func init() {
+	_ = strings.TrimSpace
 }

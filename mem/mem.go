@@ -1,23 +1,13 @@
 package mem
 
-/*
-#cgo pkg-config: libxml-2.0
+// LIBXML_VERSION is the libxml2 version this was originally built against.
+// Pure Go implementation does not require a specific libxml2 version.
+const LIBXML_VERSION = "2.0.0"
 
-#include <libxml/xmlversion.h>
-#include "libxml.h"
-*/
-import "C"
+// LIBXML_NUMERIC_VERSION is a placeholder for the numeric version.
+const LIBXML_NUMERIC_VERSION = 0
 
-const (
-	LIBXML_VERSION         = C.LIBXML_DOTTED_VERSION
-	LIBXML_NUMERIC_VERSION = C.LIBXML_VERSION
-)
-
-func init() {
-	C.xmlCheckVersion(LIBXML_NUMERIC_VERSION)
-	C.libxmlGoInit()
-}
-
+// AllocSize always returns 0 in the pure Go implementation.
 func AllocSize() int {
-	return int(C.libxmlGoAllocSize())
+	return 0
 }

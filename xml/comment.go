@@ -1,7 +1,6 @@
 package xml
 
-import "C"
-
+// CommentNode represents an XML comment node.
 type CommentNode struct {
 	*XmlNode
 }

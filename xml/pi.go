@@ -1,7 +1,6 @@
 package xml
 
-import "C"
-
+// ProcessingInstructionNode represents a processing instruction node.
 type ProcessingInstructionNode struct {
 	*XmlNode
 }
