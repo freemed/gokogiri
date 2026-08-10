@@ -43,14 +43,23 @@ func parseXML(content, inEncoding, url []byte, options ParseOption, outEncoding 
 		outEnc = "utf-8"
 	}
 
-	// Layer 1: Encoding detection
+	// Layer 1: Encoding detection and normalization
 	reader, detectedEnc := detectEncoding(content, options)
 	if options&XML_PARSE_IGNORE_ENC != 0 {
 		detectedEnc = string(inEncoding)
 	}
+	// Normalize: read all decoded bytes and strip the encoding attribute
+	// from the XML declaration, since the content is now UTF-8 but the
+	// declaration may still reference the original encoding (e.g. ISO-8859-1).
+	// Go's encoding/xml decoder will choke on the mismatch.
+	normalized, encErr := io.ReadAll(reader)
+	if encErr == nil {
+		normalized = stripXMLEncodingDecl(normalized)
+		reader = bytes.NewReader(normalized)
+	}
 	_ = detectedEnc
 
-	// Layer 2: DTD pre-scan
+	// Layer 2: DTD pre-scan (on original content for charset correctness)
 	dtdInfo := preScanDTD(content, options)
 
 	// Layer 3: Tree parsing
@@ -604,4 +613,48 @@ func buildIDIndex(root *InternalNode, info *DTDInfo) map[string]*InternalNode {
 		return nil
 	}
 	return index
+}
+
+// stripXMLEncodingDecl removes or normalizes the encoding pseudo-attribute
+// from the XML declaration. After charset detection and decoding, the content
+// is UTF-8, but the XML declaration may still reference the original encoding
+// (e.g. ISO-8859-1). Go's encoding/xml decoder will fail with "encoding
+// declared but Decoder.CharsetReader is nil" if the declared encoding
+// doesn't match the actual UTF-8 byte stream.
+func stripXMLEncodingDecl(data []byte) []byte {
+	// Only process if it starts with XML declaration
+	if len(data) < 5 || !bytes.HasPrefix(data, []byte("<?xml")) {
+		return data
+	}
+	end := bytes.Index(data, []byte("?>"))
+	if end < 0 {
+		return data
+	}
+	decl := data[:end+2]
+	rest := data[end+2:]
+
+	// Remove encoding="..." or encoding='...' from the declaration
+	var result []byte
+	i := 0
+	for i < len(decl) {
+		// Look for encoding=
+		if i+9 < len(decl) && strings.EqualFold(string(decl[i:i+9]), "encoding=") {
+			quote := decl[i+9]
+			// Skip encoding="..."
+			if quote == '"' || quote == '\'' {
+				j := i + 10
+				for j < len(decl) && decl[j] != quote {
+					j++
+				}
+				if j < len(decl) {
+					j++ // skip closing quote
+				}
+				i = j
+				continue
+			}
+		}
+		result = append(result, decl[i])
+		i++
+	}
+	return append(result, rest...)
 }
