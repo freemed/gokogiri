@@ -123,6 +123,10 @@ func (xpath *XPath) Evaluate(nodePtr interface{}, xpathExpr *Expression) (err er
 			current := v.Current()
 			if nn, ok := current.(*nodeNavigator); ok {
 				xpath.resultNodes = append(xpath.resultNodes, nn.resultNode())
+			} else {
+				// Non-gokogiri navigator (e.g., scalarNavigator from
+				// variable resolution): store as-is.
+				xpath.resultNodes = append(xpath.resultNodes, current)
 			}
 		}
 	case bool:
@@ -180,6 +184,10 @@ func (xpath *XPath) ResultAsString() (val string, err error) {
 		if len(xpath.resultNodes) > 0 {
 			if adapter, ok := xpath.resultNodes[0].(NodeAdapter); ok {
 				return adapter.XPathValue(), nil
+			}
+			// Handle non-gokogiri navigators (e.g., scalarNavigator)
+			if nav, ok := xpath.resultNodes[0].(antchfx.NodeNavigator); ok {
+				return nav.Value(), nil
 			}
 		}
 		return "", nil
