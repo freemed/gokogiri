@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	antchfx "github.com/antchfx/xpath"
+	antchfx "github.com/freemed/xpath"
 )
 
 // XPathObjectType mirrors the libxml2 XPath result types.

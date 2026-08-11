@@ -1,7 +1,7 @@
 package xpath
 
 import (
-	antchfx "github.com/antchfx/xpath"
+	antchfx "github.com/freemed/xpath"
 )
 
 // NodeAdapter provides the minimal DOM navigation interface needed for XPath.
@@ -266,4 +266,10 @@ func (n *nodeNavigator) resultNode() NodeAdapter {
 		}
 	}
 	return n.node
+}
+
+// Node returns the underlying NodeAdapter. Exported so callers (e.g.
+// XSLT function resolvers) can extract the DOM node from XPath results.
+func (n *nodeNavigator) Node() NodeAdapter {
+	return n.resultNode()
 }

@@ -1,7 +1,7 @@
 package xpath
 
 import (
-	antchfx "github.com/antchfx/xpath"
+	antchfx "github.com/freemed/xpath"
 )
 
 // Expression is a compiled XPath expression.
@@ -34,6 +34,22 @@ func Compile(path string) (expr *Expression) {
 // CompileWithNS compiles with namespace bindings.
 func CompileWithNS(path string, namespaces map[string]string) (expr *Expression) {
 	e, err := antchfx.CompileWithNS(path, namespaces)
+	if err != nil {
+		return nil
+	}
+	return &Expression{expr: e, xpath: path}
+}
+
+// CompileWithResolvers compiles an XPath expression with variable and function
+// resolvers. Returns nil if compilation fails.
+func CompileWithResolvers(path string, namespaces map[string]string,
+	varResolver antchfx.VariableResolver, funcResolver antchfx.FunctionResolver) (expr *Expression) {
+	defer func() {
+		if r := recover(); r != nil {
+			expr = nil
+		}
+	}()
+	e, err := antchfx.CompileWithResolvers(path, namespaces, varResolver, funcResolver)
 	if err != nil {
 		return nil
 	}
