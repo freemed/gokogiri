@@ -13,7 +13,7 @@ import (
 type NodeType int
 
 const (
-	XML_ELEMENT_NODE       NodeType = iota + 1
+	XML_ELEMENT_NODE NodeType = iota + 1
 	XML_ATTRIBUTE_NODE
 	XML_TEXT_NODE
 	XML_CDATA_SECTION_NODE
@@ -48,6 +48,8 @@ const (
 	XML_SAVE_AS_XML                                   // force XML serialization on HTML doc
 	XML_SAVE_AS_HTML                                  // force HTML serialization on XML doc
 	XML_SAVE_WSNONSIG                                 // format with non-significant whitespace
+	XML_SAVE_AS_TEXT                                  // write character data verbatim (XSLT "text" output method)
+	XML_SAVE_LIBXSLT                                  // use the libxml2/libxslt-compatible serializer (XSLT output)
 )
 
 // NamespaceDeclaration represents a namespace declaration.
@@ -443,7 +445,7 @@ func (xmlNode *XmlNode) SetContent(content interface{}) (err error) {
 			textNode := &InternalNode{
 				Typ:     XML_TEXT_NODE,
 				Content: data,
-				Doc: xmlNode.inner.Doc,
+				Doc:     xmlNode.inner.Doc,
 				Valid:   true,
 			}
 			xmlNode.inner.AppendChild(textNode)
@@ -577,7 +579,7 @@ func (xmlNode *XmlNode) Attribute(name string) (attribute *AttributeNode) {
 		Typ:     XML_ATTRIBUTE_NODE,
 		Name:    name,
 		Content: val,
-		Doc: xmlNode.inner.Doc,
+		Doc:     xmlNode.inner.Doc,
 		Valid:   true,
 	}
 	node := NewNode(attrInner, xmlNode.Document)
