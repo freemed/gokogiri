@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io"
+	"sort"
 	"strings"
 
 	"golang.org/x/net/html/charset"
@@ -82,7 +83,7 @@ func parseXML(content, inEncoding, url []byte, options ParseOption, outEncoding 
 	// Create InternalDoc
 	inner := &InternalDoc{
 		DocType:       XML_DOCUMENT_NODE,
-		Root: root,
+		Root:          root,
 		DTDInfo:       dtdInfo,
 		Url:           string(url),
 		InEncoding:    inEnc,
@@ -487,9 +488,19 @@ func applyDefaultAttributes(root *InternalNode, info *DTDInfo) {
 	walk = func(n *InternalNode) {
 		if n.Typ == XML_ELEMENT_NODE {
 			if defaults, ok := info.DefaultAttrs[n.Name]; ok {
-				for attrName, attrVal := range defaults {
+				// Visit the default attribute names in sorted order: they are
+				// stored in a map, and the order they are appended to the
+				// element's attribute list is the order they serialize in, so
+				// ranging over the map directly made the serialized document
+				// depend on Go's map iteration order.
+				names := make([]string, 0, len(defaults))
+				for attrName := range defaults {
+					names = append(names, attrName)
+				}
+				sort.Strings(names)
+				for _, attrName := range names {
 					if _, found := n.GetAttr(attrName); !found {
-						n.SetAttr(attrName, attrVal)
+						n.SetAttr(attrName, defaults[attrName])
 					}
 				}
 			}
